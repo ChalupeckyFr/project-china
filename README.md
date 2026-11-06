@@ -75,6 +75,10 @@ obdélníkovou mřížku stejných rozměrů; hloubky se vracejí v paměti po �
 od `y=0`, bez ukládání zpracovaných dat. Neplatný vstup vyvolá
 `DepthCsvError`. Syntetická posloupnost pohybu je vytvářena pouze v testu.
 
+`project_china.selection.select_depth_regions(frame)` vybírá hodnoty včetně
+obou mezí 750–1000 a vrací binární masku i obrysy všech oddělených oblastí.
+Prázdný výběr vrací prázdnou množinu obrysů, nikoli chybu.
+
 ## Co tu (zatím) není
 
 Vykreslovací demo, spuštění aplikace, CI a licence zatím nejsou připravené.

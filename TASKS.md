@@ -107,8 +107,8 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
 - Hotovo když: Výběr i obrysy odpovídají DEC-004 a prázdný výběr není vydáván za chybný vstup.
 - Ověření:
   - Plán: Spustit cílené testy hodnot 749, 750, 1000 a 1001, známých syntetických tvarů, více oblastí a prázdné masky.
-  - Výsledek: dosud neprovedeno
-- Stav: nezahajeno
+  - Výsledek: V CPythonu 3.13.17 vytvořeno `select_depth_regions` nad NumPy/OpenCV; maska zahrnuje meze 750 i 1000 a obrysy zahrnují všechny oddělené popřední oblasti, včetně oblasti vnořené do díry. Testy pokrývají 749/750/1000/1001, čtyři oddělené oblasti a prázdný výběr. `& '.venv\Scripts\python.exe' -m pytest -q` skončil `19 passed in 0.16s`; `& '.venv\Scripts\ruff.exe' check src tests` skončil `All checks passed!`.
+- Stav: dokonceno
 - Poznámky: Rozpoznávání identity osoby ani produkční ToF vstup nejsou součástí úkolu.
 
 ## T-006
