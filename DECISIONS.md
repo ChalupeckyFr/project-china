@@ -195,3 +195,21 @@ stav `navrh` nebo `ke-schvaleni`.
   - Schválil: člověk
   - Datum: 2026-11-06
   - Podmínky / výjimky: Instalace pouze v uživatelském rozsahu; žádné změny schválených závislostí ani globální instalace.
+
+## DEC-009
+
+- Předmět: Produktová akceptace vizuálního dema
+- Typ: produktova-akceptace
+- Kontext: [T-008](TASKS.md#t-008) předkládá výsledek vizuální kontroly [AC-001](SPEC.md#ac-001) a provizorní parametry efektů.
+- Varianty: Přijmout předložený výsledek a parametry, nebo požadovat úpravy.
+- Výsledek: Člověk výslovně přijal vizuální výsledek a provizorní parametry dema.
+- Důvod: Přímá odpověď člověka: „Přijímám výsledek a provizorní parametry“ po předložení sekvence zvedání paží a snímků vykreslení.
+- Důsledky: Pro první demo jsou přijaty pevné parametry: 72 částic, přitažlivost 0,08 na kroku 60 Hz, náběh 180 ms, uvolnění s časovou konstantou 700 ms, průlet každé 3 s po dobu 750 ms a kruhový obrys s poloměrem 12 px. Akceptace se vztahuje na syntetickou posloupnost, nikoli na kameru, produkční data nebo výkon na jiném zařízení.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: –
+- Schválení:
+  - Rozsah: Vizuální výsledek T-008 a výše uvedené pevné parametry prvního dema.
+  - Revize: Pracovní kopie nad HEAD `c07b45a`; SHA-256 `src/project_china/demo.py`: `913F16D250AB139D469A70929FC6C664A63E56A23841E2DDCA235FD322B23210`; `src/project_china/effects.py`: `A4C89CD7EC8F486E8737E63040D7831E5BB498E78C0D2DA7421FA3596FD9B511`; náhled `T-008-preview.png`: `FBD778F13FE005B9B0268B3F8F150A0721D8DD7B39ACE556095E239497B43FF0`; detail `T-008-raised-frame.png`: `FAEA35DC85AE9A3E9CEE7342F080E37C0001F94D720F7CCBBBC4397DDF4C3692`.
+  - Schválil: člověk
+  - Datum: 2026-11-06
+  - Podmínky / výjimky: Ověření bylo provedeno na syntetické postavě 24×32 vytvořené v paměti; skutečný záznam z kamery ani produkční zařízení nebyly součástí akceptace.

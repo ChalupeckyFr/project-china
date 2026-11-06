@@ -6,9 +6,9 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 ## Fáze
 
-- Fáze: `realizace`
+- Fáze: `akceptace-prirustku`
 - Od: 2026-11-06
-- Poslední změna fáze: zahájena práce na T-007
+- Poslední změna fáze: člověk přijal výsledek T-008 podle DEC-009
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-Následuje T-008: vizuální ověření dema a předložení výsledku člověku.
+První přírůstek je přijat; čeká se na pokyn člověka k dalšímu přírůstku nebo uzavření.
 
 ## Bod pokračování
 
-- Aktivní úkol: T-008
-- Poslední dokončená činnost: deterministické animace a pevný objektový obrys ověřené testy v T-007
-- Neověřené změny ve worktree: vizuální výsledek T-007 nad syntetickou posloupností
-- Další bezpečný krok: provést vizuální kontrolu v T-008; produktovou akceptaci ponechat člověku
+- Aktivní úkol: žádný
+- Poslední dokončená činnost: člověk přijal T-008 a pevné parametry dema podle DEC-009
+- Neověřené změny ve worktree: v rámci syntetického dema žádné; skutečná kamera a produkční zařízení nebyly ověřeny
+- Další bezpečný krok: vyčkat na pokyn člověka k dalšímu přírůstku nebo uzavření
 
 ## Otevřené otázky
 
@@ -63,7 +63,7 @@ Formát záznamu (vzor, není záznam):
 - Blokuje: nic
 - Rozhodne: člověk
 - Stav: vyreseno
-- Výsledek: Koeficient je bezrozměrný; jeho pevná hodnota se určí při vizuálním ladění dema.
+- Výsledek: Pevný koeficient 0,08 byl přijat při vizuálním ladění dema podle [DEC-009](DECISIONS.md#dec-009).
 
 ## Q-004
 

@@ -49,6 +49,24 @@ def test_particles_release_gradually_when_target_disappears() -> None:
     assert effect.attraction_strength == 0
 
 
+def test_particles_are_distributed_around_the_whole_outline() -> None:
+    effect = StarEffect((320, 240))
+    outline = (
+        tuple((20 + index * 4, 20) for index in range(36))
+        + tuple((220, 20 + index * 4) for index in range(36))
+        + tuple((220 - index * 4, 160) for index in range(36))
+        + tuple((20, 160 - index * 4) for index in range(36))
+    )
+
+    for _ in range(240):
+        effect.update(16, outline)
+
+    lower_left_particles = sum(
+        x < 60 and y > 80 for x, y in effect.particle_positions
+    )
+    assert lower_left_particles >= 3
+
+
 def test_stars_twinkle_and_flybys_are_periodic() -> None:
     surface = pygame.Surface((320, 240))
     effect = StarEffect((320, 240))

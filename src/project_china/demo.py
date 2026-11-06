@@ -1,5 +1,6 @@
 import argparse
 import bisect
+import math
 from pathlib import Path
 
 import pygame
@@ -16,8 +17,35 @@ from project_china.selection import DepthSelection, select_depth_regions
 _SCREEN_SIZE = (960, 720)
 _BACKGROUND = (5, 8, 24)
 _CONTOUR_COLOR = (80, 155, 255)
+_CONTOUR_SAMPLE_SPACING = 6
 _OBJECT_COLOR = (220, 235, 255)
 _OBJECT_RADIUS = 12
+
+
+def _sample_contour(
+    points: tuple[tuple[int, int], ...]
+) -> tuple[tuple[int, int], ...]:
+    if len(points) < 2:
+        return points
+
+    sampled: list[tuple[int, int]] = []
+    following_points = points[1:] + points[:1]
+    for (x0, y0), (x1, y1) in zip(points, following_points, strict=True):
+        steps = max(
+            1,
+            math.ceil(
+                math.hypot(x1 - x0, y1 - y0) / _CONTOUR_SAMPLE_SPACING
+            ),
+        )
+        for step in range(steps):
+            ratio = step / steps
+            sampled.append(
+                (
+                    round(x0 + (x1 - x0) * ratio),
+                    round(y0 + (y1 - y0) * ratio),
+                )
+            )
+    return tuple(sampled)
 
 
 def _frame_index_for_elapsed(
@@ -58,7 +86,11 @@ def render_frame(
         )
         contour_points.append(points)
 
-    targets = tuple(point for points in contour_points for point in points)
+    targets = tuple(
+        point
+        for points in contour_points
+        for point in _sample_contour(points)
+    )
     effects.update(delta_ms, targets)
     effects.draw(surface, elapsed_ms)
 

@@ -23,6 +23,14 @@ def test_frame_index_tracks_elapsed_time() -> None:
     assert demo._frame_index_for_elapsed(offsets, 2000) == 2
 
 
+def test_sample_contour_interpolates_between_vertices() -> None:
+    sampled = demo._sample_contour(((0, 0), (24, 0), (24, 24), (0, 24)))
+
+    assert len(sampled) > 4
+    assert (6, 0) in sampled
+    assert (24, 6) in sampled
+
+
 def test_main_reports_invalid_csv(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     csv_path = tmp_path / "invalid.csv"
     csv_path.write_text("frame,time_ms,x,y\n", encoding="utf-8")

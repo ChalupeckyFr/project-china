@@ -95,7 +95,7 @@ class StarEffect:
         for index, particle in enumerate(self._particles):
             if self._last_targets and self._attraction_strength:
                 target_x, target_y = self._last_targets[
-                    index % len(self._last_targets)
+                    index * len(self._last_targets) // len(self._particles)
                 ]
                 particle.x += (target_x - particle.x) * blend
                 particle.y += (target_y - particle.y) * blend

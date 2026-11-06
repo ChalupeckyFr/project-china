@@ -137,9 +137,9 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
 - Hotovo když: Funkce odpovídají DEC-005, neexistuje nastavovací rozhraní a technické kontroly jsou doloženy; lidská produktová akceptace zůstává samostatná.
 - Ověření:
   - Plán: Ověřit logiku s řízeným časem a náhodností, včetně pohybu a zmizení obrysu; zaznamenat provizorní hodnoty a omezení vizuálního hodnocení.
-  - Výsledek: `StarEffect` používá pevné seedování 42 a řízené `delta_ms`; testy ověřují deterministické přitahování k pohyblivému cíli, postupné uvolnění po jeho zmizení, pohasínání a časování průletů. Pevné provizorní hodnoty: 72 částic, koeficient 0,08 na kroku 60 Hz, náběh 180 ms, uvolnění s časovou konstantou 700 ms, průlet každé 3 s po dobu 750 ms a poloměr objektového obrysu 12 px. Bez nastavovacího UI. `& '.venv\Scripts\python.exe' -m pytest -q` skončil `26 passed in 0.66s`; `& '.venv\Scripts\ruff.exe' check src tests` skončil `All checks passed!`. Vizuální a produktová akceptace nebyla provedena a zůstává v T-008.
+  - Výsledek: `StarEffect` používá pevné seedování 42 a řízené `delta_ms`; testy ověřují deterministické přitahování k pohyblivému cíli, postupné uvolnění po jeho zmizení, pohasínání a časování průletů. Pevné hodnoty: 72 částic, koeficient 0,08 na kroku 60 Hz, náběh 180 ms, uvolnění s časovou konstantou 700 ms, průlet každé 3 s po dobu 750 ms a poloměr objektového obrysu 12 px. Bez nastavovacího UI. `& '.venv\Scripts\python.exe' -m pytest -q` skončil `26 passed in 0.66s`; `& '.venv\Scripts\ruff.exe' check src tests` skončil `All checks passed!`. Vizuální kontrola v T-008 doplnila rovnoměrné vzorkování obvodu; lidské přijetí je zaznamenáno v [DEC-009](DECISIONS.md#dec-009).
 - Stav: dokonceno
-- Poznámky: Koeficient přitažlivosti se určí při vizuálním ladění podle Q-003.
+- Poznámky: Koeficient 0,08 a poloměr 12 px byly vizuálně přijaty v [DEC-009](DECISIONS.md#dec-009).
 
 ## T-008
 
@@ -152,6 +152,6 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
 - Hotovo když: Existují skutečné důkazy o ověření, známé odchylky jsou zaznamenány a potřebná lidská akceptace je doložena.
 - Ověření:
   - Plán: Spustit relevantní automatické kontroly a provést vizuální kontrolu AC-001 včetně příkladu zvedání rukou; zaznamenat revizi, prostředí, výsledky a odpověď člověka.
-  - Výsledek: dosud neprovedeno
-- Stav: nezahajeno
-- Poznámky: Bez lidské akceptace nelze výsledek vydávat za produktově přijatý.
+  - Výsledek: 6. 11. 2026 proběhlo přehrání v nativním okně Pygame 960×720 na CPythonu 3.13.17 a Pygame 2.6.1. Posloupnost tří syntetických snímků 24×32 (ruce dole, zvedání, ruce nahoře; časy 0/1800/3600 ms) byla vytvořena pouze v paměti. První kontrola ukázala shlukování částic na zjednodušených vrcholech obrysu; opraveno interpolací cílů po nejvýše 6 px a rovnoměrným rozdělením částic po obvodu. Opakované přehrání zachytilo stavy v 510/2306/4316 ms a okno se automaticky zavřelo. Náhled byl předložen jako artefakt `T-008-preview.png` a detail `T-008-raised-frame.png`. `& '.venv\Scripts\python.exe' -m pytest -q`: `28 passed in 0.64s`; `& '.venv\Scripts\ruff.exe' check src tests`: `All checks passed!`; `git diff --check` bez chyb. Ověření pokrývá syntetický tvar, nikoli kameru ani skutečný záznam člověka. Hloubková data nebyla zapsána. Člověk přijal vizuální výsledek a provizorní parametry dne 2026-11-06; schválení a otisky přesné pracovní revize jsou v [DEC-009](DECISIONS.md#dec-009).
+- Stav: dokonceno
+- Poznámky: Akceptace se vztahuje pouze na syntetické demo, ne na produkční kameru nebo hardware.
