@@ -67,8 +67,16 @@ Spusť test importu a statickou kontrolu z kořene repozitáře:
 .\.venv\Scripts\ruff.exe check src tests
 ```
 
+## Vstupní CSV
+
+`project_china.frames.load_depth_csv(path)` načítá posloupnost se záhlavím
+`frame,time_ms,x,y,depth`. Každý snímek musí mít jednotný čas a úplnou
+obdélníkovou mřížku stejných rozměrů; hloubky se vracejí v paměti po řádcích
+od `y=0`, bez ukládání zpracovaných dat. Neplatný vstup vyvolá
+`DepthCsvError`. Syntetická posloupnost pohybu je vytvářena pouze v testu.
+
 ## Co tu (zatím) není
 
-Implementace, spuštění aplikace, CI a licence zatím nejsou připravené.
+Vykreslovací demo, spuštění aplikace, CI a licence zatím nejsou připravené.
 Architekturu a základní závislosti stanovují
 schválené záznamy v `DECISIONS.md`.

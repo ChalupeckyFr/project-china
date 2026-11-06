@@ -8,7 +8,7 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 - Fáze: `realizace`
 - Od: 2026-11-06
-- Poslední změna fáze: T-003 dokončen
+- Poslední změna fáze: T-004 dokončen
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-Další je T-004; závislosti T-002 a T-003 jsou dokončené.
+Další je T-005; T-004 zpřístupňuje ověřené snímky v paměti.
 
 ## Bod pokračování
 
 - Aktivní úkol: žádný
-- Poslední dokončená činnost: konfigurace a ověření pytest/Ruff v T-003
+- Poslední dokončená činnost: načtení a validace syntetické CSV posloupnosti v T-004
 - Neověřené změny ve worktree: žádné
-- Další bezpečný krok: zahájit T-004
+- Další bezpečný krok: zahájit T-005
 
 ## Otevřené otázky
 

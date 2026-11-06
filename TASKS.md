@@ -92,8 +92,8 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
 - Hotovo když: Platná posloupnost je dostupná v paměti ve správném čase a chybné řádky, duplicity, chybějící body a rozporné časy jsou výslovně oznámeny. Příklad 0–1500 není vynucen jako limit.
 - Ověření:
   - Plán: Spustit cílené testy platných i neplatných CSV, časů a rozměrů; použít pouze syntetický vstup a ověřit, že se neukládají zpracovaná hloubková data.
-  - Výsledek: dosud neprovedeno
-- Stav: nezahajeno
+  - Výsledek: V CPythonu 3.13.17 implementován `load_depth_csv` s návratem neměnné časové posloupnosti v paměti. Testy ověřují 2×2 pohybující se syntetickou mřížku včetně hodnoty 1750 (bez pevného limitu 0–1500), nezměněný vstup bez dalších výstupních souborů, záhlaví, neplatná čísla, rozměry, duplicity, chybějící body a rozporné či neklesající časy. `& '.venv\Scripts\python.exe' -m pytest -q` skončil `15 passed in 0.06s`; `& '.venv\Scripts\ruff.exe' check src tests` skončil `All checks passed!`. Vstup vzniká v dočasném adresáři testu; kamera, ukládání zpracovaných dat ani výběr souborů nebyly přidány.
+- Stav: dokonceno
 - Poznámky: Syntetické CSV je vstupní vzorek, nikoli uložený výstup nebo záznam kamery.
 
 ## T-005
