@@ -6,9 +6,9 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 ## Fáze
 
-- Fáze: `navrh-reseni`
+- Fáze: `planovani-prirustku`
 - Od: 2026-11-06
-- Poslední změna fáze: člověk schválil rozsah prvního přírůstku (DEC-001)
+- Poslední změna fáze: člověk schválil technická rozhodnutí DEC-002 až DEC-006
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-Člověk může zahájit návrh řešení (`/plan-increment`) podle schváleného rozsahu v `DEC-001`.
+První připravený úkol: `T-001` (`/work-task T-001`).
 
 ## Bod pokračování
 
 - Aktivní úkol: žádný
-- Poslední dokončená činnost: schválení rozsahu prvního přírůstku v `DEC-001`
-- Neověřené změny ve worktree: technická realizace a ověření dema nezačaly
-- Další bezpečný krok: zahájit návrh řešení příkazem `/plan-increment`
+- Poslední dokončená činnost: záznam schválených technických rozhodnutí a plánu prvního přírůstku
+- Neověřené změny ve worktree: toolchain, výkon a kompatibilita nebyly ověřeny; implementace dema nezačala
+- Další bezpečný krok: spustit `/work-task T-001`; k instalaci v T-002 je nutný samostatný souhlas
 
 ## Otevřené otázky
 

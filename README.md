@@ -19,14 +19,14 @@ v [`AGENTS.md`](AGENTS.md).
 
 ## Jak začít
 
-Projekt je po bootstrapu ve fázi `pripraveno-ke-specifikaci`. Specifikace
-aplikace zatím neexistuje – vzniká v discovery, které **zahajuje člověk**.
+Postup zvol podle aktuální fáze a dalšího kroku v [`PROJECT.md`](PROJECT.md).
+Discovery **zahajuje člověk**.
 
 ### Ve VS Code s GitHub Copilot
 
 1. Otevři Copilot Chat v agentním režimu.
-2. Spusť `/discover-project` (nebo `Chat: Run Prompt...` → `discover-project`).
-3. Postupuj podle otázek agenta; rozsah ke schválení ti předloží explicitně.
+2. Spusť odpovídající příkaz z tabulky níže (nebo použij `Chat: Run Prompt...`).
+3. Postupuj podle pokynů agenta a posuď případná schválení.
 
 Další vstupní body:
 
