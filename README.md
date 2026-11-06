@@ -97,6 +97,51 @@ zavření okna; u jiných CSV demo zachovává jejich časové značky. Posledn�
 snímek zobrazí stejně dlouho, jako trval odstup dvou posledních snímků.
 Pokud soubor obsahuje jediný snímek, zůstane zobrazený.
 
+### Detailní syntetický člověk
+
+`examples/human_motion.csv` obsahuje 120 snímků 256×384 po 50 ms:
+98 304 bodů na snímek a celkem 11 796 480 datových řádků. Samotné postavě
+patří přes 10 000 bodů v každém snímku; ostatní body tvoří pozadí. Člověk
+během šestisekundové smyčky plynule zvedá a spouští obě ruce.
+
+Jde o procedurální čelní ortografický model, nikoli skutečný sken. Obsahuje
+plynulý profil trupu, krk, hlavu s ušima a reliéfem obličeje, ramena, lokty,
+zápěstí, dlaně s jednotlivými prsty, kolena, kotníky a chodidla. Hloubka
+popisuje zakřivené povrchy, ne pouze plochou siluetu. Jemné dýchání a přesun
+váhy doplňují pohyb rukou. Anatomická přesnost vůči skutečnému člověku
+nebyla změřena.
+
+Spuštění:
+
+```powershell
+Push-Location src
+try {
+    ..\.venv\Scripts\python.exe -m project_china.demo ..\examples\human_motion.csv
+}
+finally {
+    Pop-Location
+}
+```
+
+Velké vygenerované CSV není verzované; lze ho reprodukovat tímto příkazem:
+
+```powershell
+Push-Location src
+try {
+    ..\.venv\Scripts\python.exe -m project_china.synthetic_human ..\examples\human_motion.csv
+}
+finally {
+    Pop-Location
+}
+```
+
+Generátor odmítne přepsat existující soubor. CSV má přibližně 296 MB;
+načítání potřebuje řádově gigabajty paměti a více času než původní příklad.
+Naměřené nároky jsou v [T-013](TASKS.md#t-013).
+Současný renderer využívá jen obrys
+a 72 částic; jemný reliéf obličeje a jednotlivé prsty proto nemusí být
+v hvězdném zobrazení rozpoznatelné.
+
 Příklad je vymyšlený testovací vstup, ne záznam z kamery. Demo žádná zpracovaná
 hloubková data neukládá. Volba pevného vzorku nebo souborů přes uživatelské
 rozhraní zůstává otevřená v Q-004. Okno lze zavřít klávesou `Esc` nebo `q`.

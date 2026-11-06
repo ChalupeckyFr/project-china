@@ -8,7 +8,7 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 - Fáze: `akceptace-prirustku`
 - Od: 2026-11-06
-- Poslední změna fáze: úpravy T-009 až T-012 jsou technicky ověřeny a čekají na posouzení
+- Poslední změna fáze: detailní syntetická posloupnost T-013 je vygenerována a technicky ověřena
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-Člověk může spustit ukázku a posoudit zobrazení bez obrysu, kolečka a samostatného průletu i opakované přehrávání.
+Člověk může spustit detailní vstup podle [návodu](README.md) a posoudit postavu i její pohyb.
 
 ## Bod pokračování
 
 - Aktivní úkol: žádný
-- Poslední dokončená činnost: odstranění prolétající hvězdy v pozadí ověřené v T-012
-- Neověřené změny ve worktree: lidské posouzení nové podoby a časování; skutečná kamera a produkční zařízení nebyly ověřeny
-- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-009 až T-012
+- Poslední dokončená činnost: generování a ověření detailního vstupu podle T-013
+- Neověřené změny ve worktree: lidské posouzení nového vstupu a vzhledu; skutečná kamera a produkční zařízení nebyly ověřeny
+- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-013
 
 ## Otevřené otázky
 

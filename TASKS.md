@@ -215,3 +215,18 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
   - Výsledek: Test porovnává polohy vykreslených pixelů v časech 350/600/1000/3350/3600 ms bez aktualizace částic; před odstraněním průletu selhal ve čtyřech časech s průletem. Další test ověřuje pohasínání samotného pozadí; testy částic a dema kontrolují jejich přitažlivost, uvolnění, zobrazení u obrysu a přehrávání. V CPythonu 3.13.17 s Pygame 2.6.1 skončil `& '.venv\Scripts\python.exe' -m pytest -q tests\test_effects.py tests\test_demo.py` výsledkem `22 passed in 1.99s`, `& '.venv\Scripts\ruff.exe' check src tests` výsledkem `All checks passed!` a `git diff --check` bez chyb. Ověřena pracovní kopie nad HEAD `553cc19` včetně T-009 až T-011; SHA-256 `src/project_china/effects.py`: `73F404A37378330202FAC4F22ADBA28A420A044EF8901B0B03D8F7376D2993B0`. Nativní okno ani nová produktová akceptace nebyly součástí tohoto ověření.
 - Stav: dokonceno
 - Poznámky: Nová vizuální revize nebyla člověkem produktově přijata.
+
+## T-013
+
+- Název: Generování detailní syntetické postavy
+- Cíl: Dodat použitelné CSV s anatomicky modelovanou postavou a plynulým zvedáním a spouštěním rukou.
+- Vazby: [AC-001](SPEC.md#ac-001), [CON-001](SPEC.md#con-001), [DEC-014](DECISIONS.md#dec-014).
+- Rozsah: Samostatné CSV 256×384, 120 snímků po 50 ms; reprodukovatelný generátor a ověření v existujícím načítání a vykreslování. Původní příklad a efekty se nemění.
+- Závislosti: T-004, T-005, T-006
+- Riziko: Velikost CSV a paměť při načítání; syntetická geometrie nemusí odpovídat skutečnému člověku a renderer využívá pouze obrys.
+- Hotovo když: CSV existuje, má úplné validní mřížky a souvislou neoříznutou postavu, ruce se plynule zvedají i vracejí a celý soubor lze načíst v demu.
+- Ověření:
+  - Plán: Testovat geometrii, spojitost pohybu včetně smyčky a CSV round-trip; ověřit celý vygenerovaný soubor, časování a výstup renderu.
+  - Výsledek: Vytvořeno `examples/human_motion.csv`, 295 760 680 bajtů a 11 796 480 datových řádků. Všech 120 snímků má úplnou mřížku, jediný souvislý neoříznutý obrys a 10 118–10 237 bodů těla s hloubkou 862,751–903,477; maximální posun mezi sousedními obrysy je 7,211 px, na hraně smyčky 1 px. Původní kontrola odhalila oříznuté prsty v některých krajních pózách; záběr a proporce paží byly opraveny a kontrola rozšířena na všechny pózy. V CPythonu 3.13.17 s Pygame 2.6.1 skončil `& '.venv\Scripts\python.exe' -m pytest -q tests\test_synthetic_human.py tests\test_frames.py tests\test_selection.py tests\test_demo.py` výsledkem `158 passed in 10.26s`, Ruff `All checks passed!` a `git diff --check` bez chyb. Celé CSV bylo ověřeno přes `load_depth_csv` za 13,49 s a následně přehráno přes `run_demo` s SDL dummy a automatickou událostí QUIT: 379 vykreslených snímků, návštěva všech 120 póz a návrat na začátek v 6011 ms. Špička working set procesu byla 1948,3 MiB a špička commitované paměti 2420,1 MiB; výkon závisí na zařízení. Prohlédnuty diagnostické hloubkové mapy i hvězdné vykreslení. Ověřena pracovní kopie nad HEAD `d444dd5`; SHA-256 CSV `70061DEAD81F1C3F7CED0896398CE638611733A5F16472B0E53BBD0160DF23DB`, generátoru `74611703F17EAD2DDDBBD20B502B04BD809CEBA372B0C75218A208A603129410`. CSV není verzované a lze ho znovu vygenerovat. Nativní okno, skutečná kamera ani lidská produktová akceptace nebyly součástí ověření.
+- Stav: dokonceno
+- Poznámky: Všechny vstupní body jsou vymyšlené, ne záznam z kamery.

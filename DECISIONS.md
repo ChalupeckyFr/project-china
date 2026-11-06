@@ -285,3 +285,21 @@ stav `navrh` nebo `ke-schvaleni`.
   - Schválil: člověk
   - Datum: 2026-11-06
   - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize ani změnou požadavků pro ostatní prostředí.
+
+## DEC-014
+
+- Předmět: Detailní syntetická posloupnost člověka pro demo
+- Typ: schvaleni-rozsahu
+- Kontext: Člověk požádal o mimořádně detailní CSV simulující člověka pro výkonný počítač.
+- Varianty: Statická postava, detailní pózy po třech sekundách, nebo plynulé zvedání a spouštění rukou.
+- Výsledek: Člověk zvolil plynulé zvedání a spouštění obou rukou v opakující se sekvenci.
+- Důvod: Výslovný požadavek na detailní CSV a odpověď „Plynulé zvedání a spouštění obou rukou v opakující se sekvenci“.
+- Důsledky: Vznikne samostatný vymyšlený vstup a reprodukovatelný generátor; původní malé CSV ani renderer se nemění. Agent volí mřížku 256×384 a 120 snímků po 50 ms, tedy šestisekundový cyklus. Modelovaná anatomie není skutečný sken ani záruka přesnosti vůči konkrétnímu člověku.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: –
+- Schválení:
+  - Rozsah: Mimořádně detailní syntetický člověk pro demo na výkonném počítači, plynulý pohyb obou rukou a opakování; konkrétní rozlišení a časování jsou volbou agenta.
+  - Revize: Výslovný požadavek a upřesnění nad HEAD `d444dd5`.
+  - Schválil: člověk
+  - Datum: 2026-11-06
+  - Podmínky / výjimky: Nejde o produktovou akceptaci výsledného vzhledu ani o změnu třísekundových kroků původního CSV.
