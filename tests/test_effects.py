@@ -68,6 +68,17 @@ def test_particles_are_distributed_around_the_whole_outline() -> None:
     assert lower_left_particles >= 3
 
 
+def test_particle_count_can_be_increased() -> None:
+    assert len(StarEffect((320, 240)).particle_positions) == 72
+    assert len(StarEffect((320, 240), 360).particle_positions) == 360
+
+
+@pytest.mark.parametrize("count", (0, -1))
+def test_particle_count_must_be_positive(count: int) -> None:
+    with pytest.raises(ValueError, match="Particle count must be positive"):
+        StarEffect((320, 240), count)
+
+
 def test_background_stars_twinkle(monkeypatch: pytest.MonkeyPatch) -> None:
     surface = pygame.Surface((320, 240))
     effect = StarEffect((320, 240))

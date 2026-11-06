@@ -206,7 +206,7 @@ stav `navrh` nebo `ke-schvaleni`.
 - Důvod: Přímá odpověď člověka: „Přijímám výsledek a provizorní parametry“ po předložení sekvence zvedání paží a snímků vykreslení.
 - Důsledky: Pro první demo jsou přijaty pevné parametry: 72 částic, přitažlivost 0,08 na kroku 60 Hz, náběh 180 ms, uvolnění s časovou konstantou 700 ms, průlet každé 3 s po dobu 750 ms a kruhový obrys s poloměrem 12 px. Akceptace se vztahuje na syntetickou posloupnost, nikoli na kameru, produkční data nebo výkon na jiném zařízení.
 - Stav: prijato
-- Nahrazuje / Nahrazeno: – / kruhový prvek a samostatný průlet byly z následné revize odstraněny podle [DEC-012](DECISIONS.md#dec-012) a [DEC-013](DECISIONS.md#dec-013); akceptace zde uvedené revize zůstává historická.
+- Nahrazuje / Nahrazeno: – / kruhový prvek a samostatný průlet byly z následné revize odstraněny podle [DEC-012](DECISIONS.md#dec-012) a [DEC-013](DECISIONS.md#dec-013); počet částic pro detailního člověka změnilo [DEC-015](DECISIONS.md#dec-015); akceptace zde uvedené revize zůstává historická.
 - Schválení:
   - Rozsah: Vizuální výsledek T-008 a výše uvedené pevné parametry prvního dema.
   - Revize: Pracovní kopie nad HEAD `c07b45a`; SHA-256 `src/project_china/demo.py`: `913F16D250AB139D469A70929FC6C664A63E56A23841E2DDCA235FD322B23210`; `src/project_china/effects.py`: `A4C89CD7EC8F486E8737E63040D7831E5BB498E78C0D2DA7421FA3596FD9B511`; náhled `T-008-preview.png`: `FBD778F13FE005B9B0268B3F8F150A0721D8DD7B39ACE556095E239497B43FF0`; detail `T-008-raised-frame.png`: `FAEA35DC85AE9A3E9CEE7342F080E37C0001F94D720F7CCBBBC4397DDF4C3692`.
@@ -303,3 +303,21 @@ stav `navrh` nebo `ke-schvaleni`.
   - Schválil: člověk
   - Datum: 2026-11-06
   - Podmínky / výjimky: Nejde o produktovou akceptaci výsledného vzhledu ani o změnu třísekundových kroků původního CSV.
+
+## DEC-015
+
+- Předmět: Hustší hvězdný obrys detailního člověka
+- Typ: schvaleni-rozsahu
+- Kontext: U detailního vstupu [T-013](TASKS.md#t-013) tvořilo obrys postavy jen 72 hvězd podle [DEC-009](DECISIONS.md#dec-009), tedy přibližně jedna hvězda na 33 px obvodu.
+- Varianty: Zvýšit počet hvězd pro všechna dema, nebo jen pro detailního člověka a výchozí demo ponechat beze změny.
+- Výsledek: Člověk zadal přidání hvězd tvořících obrys člověka. Agent zvolil 360 hvězd jen pro spuštění detailního člověka; výchozí hodnota 72 zůstává.
+- Důvod: Přímý požadavek člověka: „u člověka přidej více hvězd, které tvoří jeho obrys“. Ve srovnání 72/240/360/480 hvězd byl obrys při 360 výrazný a stále složený z jednotlivých hvězd, při 480 začínal splývat v čáru.
+- Důsledky: Demo přijímá vývojářský parametr `--particles` s výchozí hodnotou 72; skript `runHuman.ps1` pevně používá 360, obsluha hodnotu nenastavuje ([FR-008](SPEC.md#fr-008)). Ostatní parametry efektu se nemění.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: Částečně [DEC-009](DECISIONS.md#dec-009), pouze v počtu částic pro detailního člověka / –.
+- Schválení:
+  - Rozsah: Více hvězd tvořících obrys člověka; konkrétní počet je volbou agenta.
+  - Revize: Výslovný požadavek nad HEAD `3b766b5`; SHA-256 `src/project_china/effects.py`: `4DDC53F8E4D9BDC8A9932F33EAEE07D22E1A861A3907CC286E61A24CA6DC2F80`, `src/project_china/demo.py`: `96CE8A0DD62EF2AA0E3831DCD14CB9EE35801B7ACB542F6E301FFF11B1FDB311`, `runHuman.ps1`: `8200B3F1835B714A31D3E54AE2D8A94FC4812EF282F04E56277BCD9214381910`.
+  - Schválil: člověk
+  - Datum: 2026-11-07
+  - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize.

@@ -230,3 +230,18 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
   - Výsledek: Vytvořeno `examples/human_motion.csv`, 295 760 680 bajtů a 11 796 480 datových řádků. Všech 120 snímků má úplnou mřížku, jediný souvislý neoříznutý obrys a 10 118–10 237 bodů těla s hloubkou 862,751–903,477; maximální posun mezi sousedními obrysy je 7,211 px, na hraně smyčky 1 px. Původní kontrola odhalila oříznuté prsty v některých krajních pózách; záběr a proporce paží byly opraveny a kontrola rozšířena na všechny pózy. V CPythonu 3.13.17 s Pygame 2.6.1 skončil `& '.venv\Scripts\python.exe' -m pytest -q tests\test_synthetic_human.py tests\test_frames.py tests\test_selection.py tests\test_demo.py` výsledkem `158 passed in 10.26s`, Ruff `All checks passed!` a `git diff --check` bez chyb. Celé CSV bylo ověřeno přes `load_depth_csv` za 13,49 s a následně přehráno přes `run_demo` s SDL dummy a automatickou událostí QUIT: 379 vykreslených snímků, návštěva všech 120 póz a návrat na začátek v 6011 ms. Špička working set procesu byla 1948,3 MiB a špička commitované paměti 2420,1 MiB; výkon závisí na zařízení. Prohlédnuty diagnostické hloubkové mapy i hvězdné vykreslení. Ověřena pracovní kopie nad HEAD `d444dd5`; SHA-256 CSV `70061DEAD81F1C3F7CED0896398CE638611733A5F16472B0E53BBD0160DF23DB`, generátoru `74611703F17EAD2DDDBBD20B502B04BD809CEBA372B0C75218A208A603129410`. CSV není verzované a lze ho znovu vygenerovat. Nativní okno, skutečná kamera ani lidská produktová akceptace nebyly součástí ověření.
 - Stav: dokonceno
 - Poznámky: Všechny vstupní body jsou vymyšlené, ne záznam z kamery.
+
+## T-014
+
+- Název: Hustší hvězdný obrys člověka
+- Cíl: Zvýšit počet hvězd tvořících obrys detailního člověka.
+- Vazby: [AC-001](SPEC.md#ac-001), [FR-004](SPEC.md#fr-004), [FR-008](SPEC.md#fr-008), [DEC-015](DECISIONS.md#dec-015).
+- Rozsah: Volitelný počet částic v `StarEffect` a parametr `--particles` dema s výchozí hodnotou 72; `runHuman.ps1` používá 360. Ukázka objektu a ostatní parametry se nemění.
+- Závislosti: T-007, T-013
+- Riziko: Příliš mnoho hvězd by splynulo v souvislou čáru; vyšší výpočetní náročnost.
+- Hotovo když: Obrys člověka je výrazně hustší, ale stále tvořený hvězdami; výchozí demo zůstává na 72 a testy projdou.
+- Ověření:
+  - Plán: Porovnat vykreslení s 72/240/360/480 hvězdami, změřit pokrytí obrysu a čas vykreslení, otestovat předání parametru a spustit skript.
+  - Výsledek: Obvod postavy na obrazovce měří 2 305–2 397 px. Po 240 krocích je největší vzdálenost bodu obrysu od nejbližší hvězdy u snímků 0/30/60 při 72 hvězdách 23,2–25,5 px a při 360 hvězdách 7,0–7,1 px; všech 360 hvězd leží do 3 px od obrysu. Vykreslení snímku 960×720 trvalo 0,80 ms při 72 a 1,11 ms při 360 hvězdách. Vizuální srovnání je v `human-density.png` (session artefakt). Testy pokrývají výchozí počet, předání a odmítnutí neplatného `--particles`, počet hvězd v `run_demo` a pokrytí obrysu člověka. V CPythonu 3.13.17 s Pygame 2.6.1 skončil `& '.venv\Scripts\python.exe' -m pytest -q` výsledkem `177 passed in 12.23s` a `& '.venv\Scripts\ruff.exe' check src tests` výsledkem `All checks passed!`. `runHuman.ps1` s SDL dummy spustil demo s `--particles 360` a po 35 s stále běžel bez chyb. Ověřena pracovní kopie nad HEAD `3b766b5`; otisky jsou v [DEC-015](DECISIONS.md#dec-015). Nativní okno ani produktová akceptace nebyly součástí ověření.
+- Stav: dokonceno
+- Poznámky: Ukázka objektu (`runObject.ps1`) nadále používá 72 hvězd.

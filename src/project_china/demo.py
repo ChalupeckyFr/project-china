@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pygame
 
-from project_china.effects import StarEffect
+from project_china.effects import PARTICLE_COUNT, StarEffect
 from project_china.frames import (
     DepthCsvError,
     DepthFrame,
@@ -100,9 +100,13 @@ def render_frame(
     effects.draw(surface, elapsed_ms)
 
 
-def run_demo(sequence: DepthSequence) -> None:
+def run_demo(
+    sequence: DepthSequence, particle_count: int = PARTICLE_COUNT
+) -> None:
     if not sequence.frames:
         raise ValueError("Cannot display an empty depth sequence.")
+    if particle_count < 1:
+        raise ValueError("Particle count must be positive.")
 
     first_time = sequence.frames[0].time_ms
     frame_offsets = tuple(frame.time_ms - first_time for frame in sequence.frames)
@@ -115,7 +119,7 @@ def run_demo(sequence: DepthSequence) -> None:
         screen = pygame.display.set_mode(_SCREEN_SIZE)
         pygame.display.set_caption("Project China - depth demo")
         clock = pygame.time.Clock()
-        effects = StarEffect(_SCREEN_SIZE)
+        effects = StarEffect(_SCREEN_SIZE, particle_count)
         started_at = pygame.time.get_ticks()
         previous_tick = started_at
         running = True
@@ -152,14 +156,22 @@ def run_demo(sequence: DepthSequence) -> None:
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Play a depth-map CSV sequence.")
     parser.add_argument("csv_path", type=Path, help="path to a depth-map CSV file")
+    parser.add_argument(
+        "--particles",
+        type=int,
+        default=PARTICLE_COUNT,
+        help=f"number of stars attracted to the outline (default: {PARTICLE_COUNT})",
+    )
     args = parser.parse_args(argv)
+    if args.particles < 1:
+        parser.error("--particles must be a positive integer")
 
     try:
         sequence = load_depth_csv(args.csv_path)
     except (DepthCsvError, OSError) as exc:
         parser.error(str(exc))
 
-    run_demo(sequence)
+    run_demo(sequence, args.particles)
 
 
 if __name__ == "__main__":

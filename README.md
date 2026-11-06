@@ -94,7 +94,9 @@ finally {
 
 Totéž z kořene repozitáře spustí `.\runObject.ps1`. Skript `.\runHuman.ps1`
 spustí detailního člověka; pokud `examples/human_motion.csv` neexistuje,
-nejprve ho vygeneruje, jinak použije existující soubor. Při omezující
+nejprve ho vygeneruje, jinak použije existující soubor. Pro člověka spouští
+demo s 360 hvězdami na obrysu místo výchozích 72; počet lze při ručním
+spuštění zadat parametrem `--particles`. Při omezující
 execution policy použij např.
 `powershell -ExecutionPolicy Bypass -File .\runHuman.ps1`.
 
@@ -122,7 +124,7 @@ Spuštění:
 ```powershell
 Push-Location src
 try {
-    ..\.venv\Scripts\python.exe -m project_china.demo ..\examples\human_motion.csv
+    ..\.venv\Scripts\python.exe -m project_china.demo ..\examples\human_motion.csv --particles 360
 }
 finally {
     Pop-Location
@@ -144,17 +146,19 @@ finally {
 Generátor odmítne přepsat existující soubor. CSV má přibližně 296 MB;
 načítání potřebuje řádově gigabajty paměti a více času než původní příklad.
 Naměřené nároky jsou v [T-013](TASKS.md#t-013).
-Současný renderer využívá jen obrys
-a 72 částic; jemný reliéf obličeje a jednotlivé prsty proto nemusí být
-v hvězdném zobrazení rozpoznatelné.
+Současný renderer využívá jen obrys; u člověka jej tvoří 360 hvězd
+(nejvýše asi 7 px mezi bodem obrysu a nejbližší hvězdou, viz
+[T-014](TASKS.md#t-014)). Jemný reliéf obličeje a jednotlivé prsty proto
+nemusí být v hvězdném zobrazení rozpoznatelné.
 
 Příklad je vymyšlený testovací vstup, ne záznam z kamery. Demo žádná zpracovaná
 hloubková data neukládá. Volba pevného vzorku nebo souborů přes uživatelské
 rozhraní zůstává otevřená v Q-004. Okno lze zavřít klávesou `Esc` nebo `q`.
 
 Hvězdné pozadí plynule pohasíná a při výskytu obrysu
-k němu přitahuje 72 částic rovnoměrně rozložených po obvodu, vzorkovaném
-nejvýše po 6 px; po jeho zmizení se částice postupně uvolní.
+k němu přitahuje částice rovnoměrně rozložené po obvodu, vzorkovaném
+nejvýše po 6 px (výchozí počet 72, u člověka 360); po jeho zmizení se
+částice postupně uvolní.
 Obrys postavy či objektu se nevykresluje čarou, jeho tvar naznačují hvězdy.
 Samostatné kolečko uprostřed cíle se nevykresluje.
 Samostatná prolétající hvězda v pozadí se nevykresluje.

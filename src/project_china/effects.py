@@ -7,7 +7,7 @@ import pygame
 _BACKGROUND = (5, 8, 24)
 _STAR_COLOR = (145, 170, 215)
 _BRIGHT_STAR_COLOR = (225, 235, 255)
-_PARTICLE_COUNT = 72
+PARTICLE_COUNT = 72
 _ATTRACTION_COEFFICIENT = 0.08
 _ATTRACTION_RAMP_MS = 180.0
 _RELEASE_TIME_MS = 700.0
@@ -32,7 +32,11 @@ class _Particle:
 
 
 class StarEffect:
-    def __init__(self, size: tuple[int, int]) -> None:
+    def __init__(
+        self, size: tuple[int, int], particle_count: int = PARTICLE_COUNT
+    ) -> None:
+        if particle_count < 1:
+            raise ValueError("Particle count must be positive.")
         self._width, self._height = size
         random_source = random.Random(42)
         star_count = max(100, self._width * self._height // 3000)
@@ -53,7 +57,7 @@ class StarEffect:
                 random_source.uniform(-8, 8),
                 random_source.uniform(0, math.tau),
             )
-            for _ in range(_PARTICLE_COUNT)
+            for _ in range(particle_count)
         ]
         self._last_targets: tuple[tuple[int, int], ...] = ()
         self._attraction_strength = 0.0
