@@ -8,7 +8,7 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 - Fáze: `realizace`
 - Od: 2026-11-06
-- Poslední změna fáze: T-002 dokončen; další je T-003
+- Poslední změna fáze: T-003 dokončen
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-Další je `T-003`; závislosti T-002 jsou připravené a ověřené.
+Další je T-004; závislosti T-002 a T-003 jsou dokončené.
 
 ## Bod pokračování
 
 - Aktivní úkol: žádný
-- Poslední dokončená činnost: příprava a ověření prostředí v T-002
-- Neověřené změny ve worktree: žádné; neúspěšné prostředí Pythonu 3.14 je zachováno jako `.venv-py314-failed`
-- Další bezpečný krok: zahájit T-003 v ověřeném prostředí `.venv`
+- Poslední dokončená činnost: konfigurace a ověření pytest/Ruff v T-003
+- Neověřené změny ve worktree: žádné
+- Další bezpečný krok: zahájit T-004
 
 ## Otevřené otázky
 

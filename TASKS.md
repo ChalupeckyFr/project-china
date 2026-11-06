@@ -77,8 +77,8 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
 - Hotovo když: Základní test i statická kontrola běží v připraveném prostředí a jejich výsledky jsou doloženy.
 - Ověření:
   - Plán: Skutečně spustit nejmenší relevantní test a statickou kontrolu; zaznamenat příkazy, výstupy a prostředí.
-  - Výsledek: dosud neprovedeno
-- Stav: nezahajeno
+  - Výsledek: V CPythonu 3.13.17 z `.venv` vytvořen `pyproject.toml` s konfigurací pytest (`testpaths = ["tests"]`, `pythonpath = ["src"]`) a Ruff (`target-version = "py313"`, délka řádku 88). Přidán test ověřující, že se balíček `project_china` importuje ze zdrojového stromu. Příkaz `& '.venv\Scripts\python.exe' -m pytest -q` skončil výstupem `1 passed in 0.01s`; `& '.venv\Scripts\ruff.exe' check src tests` skončil `All checks passed!`. CI ani hooks nebyly přidány.
+- Stav: dokonceno
 - Poznámky: Závisí na připraveném prostředí; CI ani hooks nejsou součástí úkolu.
 
 ## T-004

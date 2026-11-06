@@ -58,6 +58,15 @@ py -3.13 -m venv .venv
 Ověřeno na Windows s CPythonem 3.13.17 x64. Před vytvořením prostředí
 ověř, že `.venv` ještě neexistuje.
 
+## Základní kontroly
+
+Spusť test importu a statickou kontrolu z kořene repozitáře:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
+.\.venv\Scripts\ruff.exe check src tests
+```
+
 ## Co tu (zatím) není
 
 Implementace, spuštění aplikace, CI a licence zatím nejsou připravené.
