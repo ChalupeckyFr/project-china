@@ -137,8 +137,8 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
 - Hotovo když: Funkce odpovídají DEC-005, neexistuje nastavovací rozhraní a technické kontroly jsou doloženy; lidská produktová akceptace zůstává samostatná.
 - Ověření:
   - Plán: Ověřit logiku s řízeným časem a náhodností, včetně pohybu a zmizení obrysu; zaznamenat provizorní hodnoty a omezení vizuálního hodnocení.
-  - Výsledek: dosud neprovedeno
-- Stav: nezahajeno
+  - Výsledek: `StarEffect` používá pevné seedování 42 a řízené `delta_ms`; testy ověřují deterministické přitahování k pohyblivému cíli, postupné uvolnění po jeho zmizení, pohasínání a časování průletů. Pevné provizorní hodnoty: 72 částic, koeficient 0,08 na kroku 60 Hz, náběh 180 ms, uvolnění s časovou konstantou 700 ms, průlet každé 3 s po dobu 750 ms a poloměr objektového obrysu 12 px. Bez nastavovacího UI. `& '.venv\Scripts\python.exe' -m pytest -q` skončil `26 passed in 0.66s`; `& '.venv\Scripts\ruff.exe' check src tests` skončil `All checks passed!`. Vizuální a produktová akceptace nebyla provedena a zůstává v T-008.
+- Stav: dokonceno
 - Poznámky: Koeficient přitažlivosti se určí při vizuálním ladění podle Q-003.
 
 ## T-008

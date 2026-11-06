@@ -8,7 +8,7 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 - Fáze: `realizace`
 - Od: 2026-11-06
-- Poslední změna fáze: T-006 dokončen
+- Poslední změna fáze: zahájena práce na T-007
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-Další je T-007; T-006 propojuje CSV, obrysy a základní hvězdný výstup.
+Následuje T-008: vizuální ověření dema a předložení výsledku člověku.
 
 ## Bod pokračování
 
-- Aktivní úkol: žádný
-- Poslední dokončená činnost: propojený průchod syntetickým CSV v lokálním okně v T-006
-- Neověřené změny ve worktree: žádné
-- Další bezpečný krok: zahájit T-007; plná vizuální akceptace AC-001 zůstává otevřená
+- Aktivní úkol: T-008
+- Poslední dokončená činnost: deterministické animace a pevný objektový obrys ověřené testy v T-007
+- Neověřené změny ve worktree: vizuální výsledek T-007 nad syntetickou posloupností
+- Další bezpečný krok: provést vizuální kontrolu v T-008; produktovou akceptaci ponechat člověku
 
 ## Otevřené otázky
 

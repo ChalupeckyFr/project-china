@@ -4,6 +4,7 @@ import pygame
 import pytest
 
 from project_china import demo
+from project_china.effects import StarEffect
 from project_china.frames import DepthFrame, load_depth_csv
 from project_china.selection import select_depth_regions
 
@@ -37,11 +38,12 @@ def test_render_frame_draws_stars_and_contour() -> None:
     frame = DepthFrame(0, 0, ((900, 1200), (1200, 1200)))
     selection = select_depth_regions(frame)
     surface = pygame.Surface((320, 240))
+    effects = StarEffect((320, 240))
 
-    demo.render_frame(surface, frame, selection, ((10, 10, 1),))
+    demo.render_frame(surface, frame, selection, effects, 0, 0)
 
-    assert surface.get_at((10, 10))[:3] == demo._STAR_COLOR
-    assert surface.get_at((112, 72))[:3] == demo._CONTOUR_STAR_COLOR
+    assert surface.get_at((123, 72))[:3] == demo._OBJECT_COLOR
+    assert surface.get_at((112, 72))[:3] == demo._CONTOUR_COLOR
 
 
 def test_run_demo_renders_then_closes_on_quit(
@@ -59,9 +61,11 @@ def test_run_demo_renders_then_closes_on_quit(
         surface: pygame.Surface,
         frame: DepthFrame,
         selection: demo.DepthSelection,
-        stars: tuple[demo._Star, ...],
+        effects: StarEffect,
+        elapsed_ms: int,
+        delta_ms: int,
     ) -> None:
-        render_frame(surface, frame, selection, stars)
+        render_frame(surface, frame, selection, effects, elapsed_ms, delta_ms)
         rendered_frames.append(frame.frame)
 
     monkeypatch.setattr(demo, "render_frame", record_frame)

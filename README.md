@@ -96,6 +96,13 @@ Příklad je vymyšlený testovací vstup, ne záznam z kamery. Demo žádná zp
 hloubková data neukládá. Volba pevného vzorku nebo souborů přes uživatelské
 rozhraní zůstává otevřená v Q-004. Okno lze zavřít klávesou `Esc` nebo `q`.
 
+Hvězdné pozadí plynule pohasíná, obsahuje občasné průlety a při výskytu obrysu
+k němu přitahuje 72 částic; po jeho zmizení se částice postupně uvolní.
+Provizorní pevné parametry jsou přitažlivost 0,08 na referenčním kroku 60 Hz,
+náběh přitažlivosti 180 ms, uvolnění s časovou konstantou 700 ms, průlet každé
+3 sekundy po dobu 750 ms a kruhový objektový obrys s poloměrem 12 px. Parametry
+nemají nastavovací UI a čekají na vizuální posouzení v T-008.
+
 ## Co tu (zatím) není
 
 CI a licence zatím nejsou připravené.

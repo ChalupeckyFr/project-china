@@ -1,10 +1,10 @@
 import argparse
 import bisect
-import random
 from pathlib import Path
 
 import pygame
 
+from project_china.effects import StarEffect
 from project_china.frames import (
     DepthCsvError,
     DepthFrame,
@@ -15,25 +15,9 @@ from project_china.selection import DepthSelection, select_depth_regions
 
 _SCREEN_SIZE = (960, 720)
 _BACKGROUND = (5, 8, 24)
-_STAR_COLOR = (145, 170, 215)
-_BRIGHT_STAR_COLOR = (225, 235, 255)
 _CONTOUR_COLOR = (80, 155, 255)
-_CONTOUR_STAR_COLOR = (220, 235, 255)
-_Star = tuple[int, int, int]
-
-
-def _create_starfield(size: tuple[int, int]) -> tuple[_Star, ...]:
-    width, height = size
-    random_source = random.Random(42)
-    count = max(100, width * height // 3000)
-    return tuple(
-        (
-            random_source.randrange(width),
-            random_source.randrange(height),
-            1 if random_source.random() < 0.9 else 2,
-        )
-        for _ in range(count)
-    )
+_OBJECT_COLOR = (220, 235, 255)
+_OBJECT_RADIUS = 12
 
 
 def _frame_index_for_elapsed(
@@ -47,12 +31,11 @@ def render_frame(
     surface: pygame.Surface,
     frame: DepthFrame,
     selection: DepthSelection,
-    stars: tuple[_Star, ...],
+    effects: StarEffect,
+    elapsed_ms: int,
+    delta_ms: int,
 ) -> None:
     surface.fill(_BACKGROUND)
-    for x, y, radius in stars:
-        color = _STAR_COLOR if radius == 1 else _BRIGHT_STAR_COLOR
-        pygame.draw.circle(surface, color, (x, y), radius)
 
     grid_height = len(frame.depths)
     grid_width = len(frame.depths[0])
@@ -63,6 +46,7 @@ def render_frame(
     )
     left = (surface.get_width() - grid_width * scale) / 2
     top = (surface.get_height() - grid_height * scale) / 2
+    contour_points: list[tuple[tuple[int, int], ...]] = []
 
     for contour in selection.contours:
         points = tuple(
@@ -72,14 +56,26 @@ def render_frame(
             )
             for x, y in contour.reshape(-1, 2)
         )
+        contour_points.append(points)
+
+    targets = tuple(point for points in contour_points for point in points)
+    effects.update(delta_ms, targets)
+    effects.draw(surface, elapsed_ms)
+
+    for points in contour_points:
         if len(points) > 1:
             pygame.draw.lines(surface, _CONTOUR_COLOR, True, points, 2)
         elif points:
             pygame.draw.circle(surface, _CONTOUR_COLOR, points[0], 2)
 
-        star_step = max(1, len(points) // 24)
-        for point in points[::star_step]:
-            pygame.draw.circle(surface, _CONTOUR_STAR_COLOR, point, 2)
+        if points:
+            center = (
+                round(sum(point[0] for point in points) / len(points)),
+                round(sum(point[1] for point in points) / len(points)),
+            )
+            pygame.draw.circle(
+                surface, _OBJECT_COLOR, center, _OBJECT_RADIUS, width=1
+            )
 
 
 def run_demo(sequence: DepthSequence) -> None:
@@ -97,8 +93,9 @@ def run_demo(sequence: DepthSequence) -> None:
         screen = pygame.display.set_mode(_SCREEN_SIZE)
         pygame.display.set_caption("Project China - depth demo")
         clock = pygame.time.Clock()
-        stars = _create_starfield(_SCREEN_SIZE)
+        effects = StarEffect(_SCREEN_SIZE)
         started_at = pygame.time.get_ticks()
+        previous_tick = started_at
         running = True
 
         while running:
@@ -111,14 +108,19 @@ def run_demo(sequence: DepthSequence) -> None:
             if not running:
                 break
 
-            elapsed_ms = pygame.time.get_ticks() - started_at
+            current_tick = pygame.time.get_ticks()
+            elapsed_ms = current_tick - started_at
+            delta_ms = current_tick - previous_tick
+            previous_tick = current_tick
             frame_index = _frame_index_for_elapsed(frame_offsets, elapsed_ms)
             if frame_index != current_index:
                 current_index = frame_index
                 current_frame = sequence.frames[current_index]
                 selection = select_depth_regions(current_frame)
 
-            render_frame(screen, current_frame, selection, stars)
+            render_frame(
+                screen, current_frame, selection, effects, elapsed_ms, delta_ms
+            )
             pygame.display.flip()
             clock.tick(60)
     finally:
