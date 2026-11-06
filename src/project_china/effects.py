@@ -12,8 +12,6 @@ _ATTRACTION_COEFFICIENT = 0.08
 _ATTRACTION_RAMP_MS = 180.0
 _RELEASE_TIME_MS = 700.0
 _REFERENCE_TICK_MS = 1000 / 60
-_FLYBY_CYCLE_MS = 3000
-_FLYBY_DURATION_MS = 750
 
 
 @dataclass(frozen=True)
@@ -131,29 +129,3 @@ class StarEffect:
                 (round(particle.x), round(particle.y)),
                 radius,
             )
-
-        flyby = _flyby_position(elapsed_ms, self._width, self._height)
-        if flyby is not None:
-            x, y = flyby
-            pygame.draw.line(
-                surface,
-                _BRIGHT_STAR_COLOR,
-                (x - 24, y - 12),
-                (x, y),
-                1,
-            )
-            pygame.draw.circle(surface, _BRIGHT_STAR_COLOR, (x, y), 2)
-
-
-def _flyby_position(
-    elapsed_ms: int, width: int, height: int
-) -> tuple[int, int] | None:
-    cycle_index, cycle_elapsed = divmod(elapsed_ms, _FLYBY_CYCLE_MS)
-    if cycle_elapsed >= _FLYBY_DURATION_MS:
-        return None
-
-    progress = cycle_elapsed / _FLYBY_DURATION_MS
-    x = round(-24 + progress * (width + 48))
-    y_range = max(1, height - 80)
-    y = 40 + (cycle_index * 73) % y_range
-    return x, y

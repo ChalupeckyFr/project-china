@@ -1,8 +1,9 @@
 import math
 
 import pygame
+import pytest
 
-from project_china.effects import StarEffect, _flyby_position
+from project_china.effects import StarEffect
 
 
 def _mean_distance(
@@ -67,21 +68,34 @@ def test_particles_are_distributed_around_the_whole_outline() -> None:
     assert lower_left_particles >= 3
 
 
-def test_stars_twinkle_and_flybys_are_periodic() -> None:
+def test_background_stars_twinkle(monkeypatch: pytest.MonkeyPatch) -> None:
     surface = pygame.Surface((320, 240))
     effect = StarEffect((320, 240))
+    monkeypatch.setattr(effect, "_particles", [])
     surface.fill((5, 8, 24))
-    effect.draw(surface, 0)
+    effect.draw(surface, 1000)
     first_image = pygame.surfarray.array3d(surface).copy()
 
     surface.fill((5, 8, 24))
-    effect.draw(surface, 350)
+    effect.draw(surface, 1350)
     second_image = pygame.surfarray.array3d(surface)
 
     assert not (first_image == second_image).all()
-    first_flyby = _flyby_position(350, 320, 240)
-    next_flyby = _flyby_position(3350, 320, 240)
-    assert first_flyby is not None
-    assert next_flyby is not None
-    assert first_flyby[0] == next_flyby[0]
-    assert _flyby_position(1000, 320, 240) is None
+
+
+@pytest.mark.parametrize("elapsed_ms", (350, 600, 1000, 3350, 3600))
+def test_star_positions_do_not_change_without_updates(elapsed_ms: int) -> None:
+    background = (5, 8, 24)
+    surface = pygame.Surface((320, 240))
+    effect = StarEffect((320, 240))
+
+    surface.fill(background)
+    effect.draw(surface, 1000)
+    reference_mask = (pygame.surfarray.array3d(surface) != background).any(axis=2)
+
+    surface.fill(background)
+    effect.draw(surface, elapsed_ms)
+    current_mask = (pygame.surfarray.array3d(surface) != background).any(axis=2)
+
+    assert reference_mask.any()
+    assert (reference_mask == current_mask).all()

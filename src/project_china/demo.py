@@ -16,10 +16,7 @@ from project_china.selection import DepthSelection, select_depth_regions
 
 _SCREEN_SIZE = (960, 720)
 _BACKGROUND = (5, 8, 24)
-_CONTOUR_COLOR = (80, 155, 255)
 _CONTOUR_SAMPLE_SPACING = 6
-_OBJECT_COLOR = (220, 235, 255)
-_OBJECT_RADIUS = 12
 
 
 def _sample_contour(
@@ -49,8 +46,16 @@ def _sample_contour(
 
 
 def _frame_index_for_elapsed(
-    frame_offsets: tuple[float, ...], elapsed_ms: int
+    frame_offsets: tuple[float, ...], elapsed_ms: float
 ) -> int:
+    elapsed_ms = max(0.0, elapsed_ms)
+    if len(frame_offsets) > 1:
+        last_frame_duration = frame_offsets[-1] - frame_offsets[-2]
+        if last_frame_duration <= 0:
+            raise ValueError("Frame offsets must increase strictly.")
+        cycle_duration = frame_offsets[-1] + last_frame_duration
+        elapsed_ms %= cycle_duration
+
     index = bisect.bisect_right(frame_offsets, elapsed_ms) - 1
     return min(max(index, 0), len(frame_offsets) - 1)
 
@@ -93,21 +98,6 @@ def render_frame(
     )
     effects.update(delta_ms, targets)
     effects.draw(surface, elapsed_ms)
-
-    for points in contour_points:
-        if len(points) > 1:
-            pygame.draw.lines(surface, _CONTOUR_COLOR, True, points, 2)
-        elif points:
-            pygame.draw.circle(surface, _CONTOUR_COLOR, points[0], 2)
-
-        if points:
-            center = (
-                round(sum(point[0] for point in points) / len(points)),
-                round(sum(point[1] for point in points) / len(points)),
-            )
-            pygame.draw.circle(
-                surface, _OBJECT_COLOR, center, _OBJECT_RADIUS, width=1
-            )
 
 
 def run_demo(sequence: DepthSequence) -> None:

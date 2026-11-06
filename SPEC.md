@@ -70,10 +70,10 @@ Vzor (není záznam):
 ## FR-004
 
 - Název: Chování efektu s hvězdami
-- Popis: Hvězdy jsou po celé obrazovce, s výrazně vyšší hustotou přímo na obvodu obrysu. Občas mírně pohasínají, občas proletí menší hvězdy a plynule následují obrys při pohybu nebo odchodu člověka.
+- Popis: Hvězdy jsou po celé obrazovce, s výrazně vyšší hustotou přímo na obvodu obrysu. Občas mírně pohasínají a plynule následují obrys při pohybu nebo odchodu člověka. V demu se samostatná prolétající hvězda v pozadí nevykresluje; původní požadavek na průlety menších hvězd pro ostatní prostředí tím není změněn.
 - Původ: člověk
 - Stav: schvaleno
-- Schválení: DEC-001
+- Schválení: DEC-001; změna průletu v demu DEC-013
 - Vazby: FR-002, FR-003
 
 ## FR-005
@@ -179,10 +179,10 @@ Vyhni se formulacím „rychlé“, „uživatelsky přívětivé“ bez vyjasn�
 
 - Požadavek: FR-001, FR-002, FR-004
 - Podmínky: Demo přehraje posloupnost hloubkových snímků zachycující pohyb cíle; příkladem je člověk zvedající ruce.
-- Očekávaný výsledek: Hvězdy jsou po celé obrazovce, výrazně hustší u obrysu, občas pohasínají a prolétají menší hvězdy. Efekt plynule sleduje obrys a zřetelně ukazuje pohyb cíle, například zvednutí rukou.
-- Způsob ověření: Návrh agenta: přehrát posloupnost a vizuálně zkontrolovat rozložení hvězd, jejich animace a následování obrysu.
+- Očekávaný výsledek: Hvězdy jsou po celé obrazovce, výrazně hustší u obrysu a občas pohasínají; samostatná prolétající hvězda v pozadí se nevykresluje. Efekt plynule sleduje obrys a zřetelně ukazuje pohyb cíle, například zvednutí rukou.
+- Způsob ověření: Návrh agenta: přehrát posloupnost a vizuálně zkontrolovat rozložení hvězd, jejich animace, nepřítomnost samostatného průletu a následování obrysu.
 - Stav: schvaleno
-- Schválení: DEC-001
+- Schválení: DEC-001; změna průletu v demu DEC-013
 
 ## 7. Předpoklady
 

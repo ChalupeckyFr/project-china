@@ -139,7 +139,7 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
   - Plán: Ověřit logiku s řízeným časem a náhodností, včetně pohybu a zmizení obrysu; zaznamenat provizorní hodnoty a omezení vizuálního hodnocení.
   - Výsledek: `StarEffect` používá pevné seedování 42 a řízené `delta_ms`; testy ověřují deterministické přitahování k pohyblivému cíli, postupné uvolnění po jeho zmizení, pohasínání a časování průletů. Pevné hodnoty: 72 částic, koeficient 0,08 na kroku 60 Hz, náběh 180 ms, uvolnění s časovou konstantou 700 ms, průlet každé 3 s po dobu 750 ms a poloměr objektového obrysu 12 px. Bez nastavovacího UI. `& '.venv\Scripts\python.exe' -m pytest -q` skončil `26 passed in 0.66s`; `& '.venv\Scripts\ruff.exe' check src tests` skončil `All checks passed!`. Vizuální kontrola v T-008 doplnila rovnoměrné vzorkování obvodu; lidské přijetí je zaznamenáno v [DEC-009](DECISIONS.md#dec-009).
 - Stav: dokonceno
-- Poznámky: Koeficient 0,08 a poloměr 12 px byly vizuálně přijaty v [DEC-009](DECISIONS.md#dec-009).
+- Poznámky: Koeficient 0,08 a poloměr 12 px byly vizuálně přijaty v [DEC-009](DECISIONS.md#dec-009); kolečko a samostatný průlet byly později v demu odstraněny podle [DEC-012](DECISIONS.md#dec-012) a [DEC-013](DECISIONS.md#dec-013).
 
 ## T-008
 
@@ -155,3 +155,63 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
   - Výsledek: 6. 11. 2026 proběhlo přehrání v nativním okně Pygame 960×720 na CPythonu 3.13.17 a Pygame 2.6.1. Posloupnost tří syntetických snímků 24×32 (ruce dole, zvedání, ruce nahoře; časy 0/1800/3600 ms) byla vytvořena pouze v paměti. První kontrola ukázala shlukování částic na zjednodušených vrcholech obrysu; opraveno interpolací cílů po nejvýše 6 px a rovnoměrným rozdělením částic po obvodu. Opakované přehrání zachytilo stavy v 510/2306/4316 ms a okno se automaticky zavřelo. Náhled byl předložen jako artefakt `T-008-preview.png` a detail `T-008-raised-frame.png`. `& '.venv\Scripts\python.exe' -m pytest -q`: `28 passed in 0.64s`; `& '.venv\Scripts\ruff.exe' check src tests`: `All checks passed!`; `git diff --check` bez chyb. Ověření pokrývá syntetický tvar, nikoli kameru ani skutečný záznam člověka. Hloubková data nebyla zapsána. Člověk přijal vizuální výsledek a provizorní parametry dne 2026-11-06; schválení a otisky přesné pracovní revize jsou v [DEC-009](DECISIONS.md#dec-009).
 - Stav: dokonceno
 - Poznámky: Akceptace se vztahuje pouze na syntetické demo, ne na produkční kameru nebo hardware.
+
+## T-009
+
+- Název: Zobrazení cíle hvězdami bez obrysové čáry
+- Cíl: Odstranit kreslený obrys postavy či objektu tak, aby jeho tvar naznačovaly hvězdy.
+- Vazby: [AC-001](SPEC.md#ac-001), [FR-004](SPEC.md#fr-004), [DEC-010](DECISIONS.md#dec-010).
+- Rozsah: Obrys zachovat jako vstup pro cíle částic, ale nekreslit jeho čáru ani bod. Samostatný kruhový objektový prvek a parametry hvězd zůstávají beze změny.
+- Závislosti: T-005, T-007, T-008
+- Riziko: Tvar po odstranění čáry nemusí být dostatečně čitelný; nový vzhled vyžaduje lidské posouzení.
+- Hotovo když: Obrys není přímo vykreslován, hvězdy se nadále přitahují k jeho bodům a technické kontroly projdou. Produktová akceptace změněného vzhledu je samostatná.
+- Ověření:
+  - Plán: Ověřit vícebodový i jednobodový obrys, skutečné vykreslení částic a zkontrolovat syntetický pohyb v obrazu.
+  - Výsledek: Testy ověřují nepřítomnost přímé kresby obrysu při zachování kruhového prvku, předání bodů částicím a jejich vykreslení u obvodu. Snímky syntetické postavy 24×32 byly vykresleny mimo okno v časech 512/2304/4320 ms; náhled posloupnosti je `T-009-motion-preview.png` a detail `T-009-stars-only.png`. Ověřena pracovní kopie nad HEAD `553cc19` v CPythonu 3.13.17 a Pygame 2.6.1: `& '.venv\Scripts\python.exe' -m pytest -q` skončil `30 passed in 0.72s`, `& '.venv\Scripts\ruff.exe' check src tests` skončil `All checks passed!` a `git diff --check` bez chyb. Hloubková data zůstala v paměti. Nová vizuální podoba dosud nebyla člověkem přijata.
+- Stav: dokonceno
+- Poznámky: Samostatný kruhový prvek v této revizi zůstal zachován; později byl odstraněn v T-011. Rozhodnutí DEC-009 se týká předchozí revize.
+
+## T-010
+
+- Název: Třísekundové kroky a opakované přehrávání
+- Cíl: Zpomalit kroky ukázkového objektu na 3 sekundy a opakovat posloupnost až do zavření dema.
+- Vazby: [AC-001](SPEC.md#ac-001), [DEC-003](DECISIONS.md#dec-003), [DEC-011](DECISIONS.md#dec-011).
+- Rozsah: Nastavit časy ukázkového CSV na 0/3000/6000 ms a přehrávat posloupnost ve smyčce. U jiných CSV zachovat jejich časy; poslední snímek podržet po dobu posledního časového odstupu. Jediný snímek zůstává zobrazený.
+- Závislosti: T-004, T-006
+- Riziko: Nesprávný interval při návratu na začátek, přerušení animací nebo nemožnost demo zavřít.
+- Hotovo když: Ukázka mění snímky po 3 sekundách včetně návratu na začátek, smyčka pokračuje do uživatelského ukončení a testy pokrývají časové hranice i další typy posloupností.
+- Ověření:
+  - Plán: Ověřit hranice několika cyklů, nepravidelné a jednosnímkové CSV, nepřerušený čas animací, zavření okna a průchod skutečným časem s SDL dummy.
+  - Výsledek: Automatické testy pokrývají kroky v časech 0/3000/6000/9000 ms, více cyklů, nepravidelné i desetinné časy, jediný snímek a ukončení událostí QUIT, klávesami Esc a q. Čas animací se při návratu na začátek nenuluje. V CPythonu 3.13.17 s Pygame 2.6.1 skončil `& '.venv\Scripts\python.exe' -m pytest -q` výsledkem `36 passed in 2.08s` a `& '.venv\Scripts\ruff.exe' check src tests` výsledkem `All checks passed!`. Reálný průchod s SDL dummy zaznamenal snímky 0/1/2/0 v časech 1/3012/6007/9009 ms a poté skončil událostí QUIT. Ověřena pracovní kopie nad HEAD `553cc19` včetně předchozí úpravy T-009; přesné otisky upraveného dema a ukázky jsou v [DEC-011](DECISIONS.md#dec-011). Nativní okno ani nová produktová akceptace nebyly součástí tohoto ověření.
+- Stav: dokonceno
+- Poznámky: Snímky mimo ukázkový soubor nadále používají časy ze svého CSV.
+
+## T-011
+
+- Název: Odstranění kolečka uvnitř cíle
+- Cíl: Odstranit samostatně vykreslovaný kruh uvnitř postavy či objektu a zachovat hvězdný efekt.
+- Vazby: [AC-001](SPEC.md#ac-001), [FR-004](SPEC.md#fr-004), [DEC-012](DECISIONS.md#dec-012).
+- Rozsah: Odstranit kresbu kruhu a jeho parametry; interní obrysy, hvězdy a opakované přehrávání ponechat beze změny.
+- Závislosti: T-007, T-009
+- Riziko: Při odstranění kruhu by se mohlo přerušit předávání obrysu částicím.
+- Hotovo když: Uvnitř cíle se samostatné kolečko nevykresluje, hvězdy nadále vykreslují jeho tvar a související testy projdou.
+- Ověření:
+  - Plán: Ověřit jednobodový i vícebodový obrys bez přímé geometrie, skutečné částice a časování dema.
+  - Výsledek: Testy kontrolují předání obrysových bodů částicím a při vypnuté kresbě hvězd čisté pozadí bez čáry i kruhu pro oba typy obrysu; samostatný test ověřuje hvězdy u obvodu. Související testy přehrávání a efektů prošly: `& '.venv\Scripts\python.exe' -m pytest -q tests\test_demo.py tests\test_effects.py` skončil `17 passed in 2.11s`, `& '.venv\Scripts\ruff.exe' check src tests` skončil `All checks passed!` a `git diff --check` bez chyb. Ověřena pracovní kopie nad HEAD `553cc19` včetně T-009 a T-010; otisk dema je uveden v [DEC-012](DECISIONS.md#dec-012). Nativní okno ani nová produktová akceptace nebyly součástí tohoto ověření.
+- Stav: dokonceno
+- Poznámky: Jednotlivé hvězdy a jejich pohyb zůstávají zachovány.
+
+## T-012
+
+- Název: Odstranění prolétající hvězdy v pozadí
+- Cíl: Odstranit samostatný průlet hvězdy a jeho stopu při zachování ostatních hvězd.
+- Vazby: [AC-001](SPEC.md#ac-001), [FR-004](SPEC.md#fr-004), [DEC-013](DECISIONS.md#dec-013).
+- Rozsah: Odstranit vykreslování a časování samostatného průletu; pohasínání pozadí, pohyb částic, sledování obrysu a přehrávání ponechat beze změny.
+- Závislosti: T-007
+- Riziko: Při odstraňování průletu by mohlo přestat fungovat pohasínání pozadí nebo zobrazování částic u obrysu.
+- Hotovo když: Samostatná prolétající hvězda ani její stopa se nevykreslují a ostatní hvězdy a částice nadále fungují.
+- Ověření:
+  - Plán: Porovnat vykreslené pixely bez aktualizace částic v několika časech dřívějších průletů a ověřit pohasínání, přitažlivost částic i vykreslení dema.
+  - Výsledek: Test porovnává polohy vykreslených pixelů v časech 350/600/1000/3350/3600 ms bez aktualizace částic; před odstraněním průletu selhal ve čtyřech časech s průletem. Další test ověřuje pohasínání samotného pozadí; testy částic a dema kontrolují jejich přitažlivost, uvolnění, zobrazení u obrysu a přehrávání. V CPythonu 3.13.17 s Pygame 2.6.1 skončil `& '.venv\Scripts\python.exe' -m pytest -q tests\test_effects.py tests\test_demo.py` výsledkem `22 passed in 1.99s`, `& '.venv\Scripts\ruff.exe' check src tests` výsledkem `All checks passed!` a `git diff --check` bez chyb. Ověřena pracovní kopie nad HEAD `553cc19` včetně T-009 až T-011; SHA-256 `src/project_china/effects.py`: `73F404A37378330202FAC4F22ADBA28A420A044EF8901B0B03D8F7376D2993B0`. Nativní okno ani nová produktová akceptace nebyly součástí tohoto ověření.
+- Stav: dokonceno
+- Poznámky: Nová vizuální revize nebyla člověkem produktově přijata.

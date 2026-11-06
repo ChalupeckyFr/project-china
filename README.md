@@ -92,17 +92,25 @@ finally {
 }
 ```
 
+Ukázkový objekt se posouvá každé 3 sekundy. Posloupnost se opakuje až do
+zavření okna; u jiných CSV demo zachovává jejich časové značky. Poslední
+snímek zobrazí stejně dlouho, jako trval odstup dvou posledních snímků.
+Pokud soubor obsahuje jediný snímek, zůstane zobrazený.
+
 Příklad je vymyšlený testovací vstup, ne záznam z kamery. Demo žádná zpracovaná
 hloubková data neukládá. Volba pevného vzorku nebo souborů přes uživatelské
 rozhraní zůstává otevřená v Q-004. Okno lze zavřít klávesou `Esc` nebo `q`.
 
-Hvězdné pozadí plynule pohasíná, obsahuje občasné průlety a při výskytu obrysu
+Hvězdné pozadí plynule pohasíná a při výskytu obrysu
 k němu přitahuje 72 částic rovnoměrně rozložených po obvodu, vzorkovaném
 nejvýše po 6 px; po jeho zmizení se částice postupně uvolní.
+Obrys postavy či objektu se nevykresluje čarou, jeho tvar naznačují hvězdy.
+Samostatné kolečko uprostřed cíle se nevykresluje.
+Samostatná prolétající hvězda v pozadí se nevykresluje.
 Pevné parametry jsou přitažlivost 0,08 na referenčním kroku 60 Hz,
-náběh přitažlivosti 180 ms, uvolnění s časovou konstantou 700 ms, průlet každé
-3 sekundy po dobu 750 ms a kruhový objektový obrys s poloměrem 12 px. Parametry
-nemají nastavovací UI a byly vizuálně přijaty pro první demo v
+náběh přitažlivosti 180 ms a uvolnění s časovou konstantou 700 ms.
+Parametry nemají nastavovací UI a odpovídají
+hodnotám částicového efektu přijatým v
 [`DEC-009`](DECISIONS.md#dec-009).
 
 ## Co tu (zatím) není

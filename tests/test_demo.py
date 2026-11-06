@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import pygame
@@ -5,7 +6,7 @@ import pytest
 
 from project_china import demo
 from project_china.effects import StarEffect
-from project_china.frames import DepthFrame, load_depth_csv
+from project_china.frames import DepthFrame, DepthSequence, load_depth_csv
 from project_china.selection import select_depth_regions
 
 EXAMPLE_CSV = (
@@ -13,14 +14,46 @@ EXAMPLE_CSV = (
 )
 
 
-def test_frame_index_tracks_elapsed_time() -> None:
+def test_example_frames_loop_every_three_seconds() -> None:
     sequence = load_depth_csv(EXAMPLE_CSV)
     offsets = tuple(frame.time_ms - sequence.frames[0].time_ms for frame in sequence.frames)
 
-    assert demo._frame_index_for_elapsed(offsets, 0) == 0
-    assert demo._frame_index_for_elapsed(offsets, 499) == 0
-    assert demo._frame_index_for_elapsed(offsets, 500) == 1
-    assert demo._frame_index_for_elapsed(offsets, 2000) == 2
+    assert offsets == (0, 3000, 6000)
+    for elapsed_ms, expected_index in (
+        (0, 0),
+        (2999, 0),
+        (3000, 1),
+        (5999, 1),
+        (6000, 2),
+        (8999, 2),
+        (9000, 0),
+        (12000, 1),
+        (18000, 0),
+    ):
+        assert demo._frame_index_for_elapsed(offsets, elapsed_ms) == expected_index
+
+
+def test_frame_index_preserves_uneven_and_fractional_intervals() -> None:
+    offsets = (0.0, 1000.0, 3500.0)
+    assert demo._frame_index_for_elapsed(offsets, -1) == 0
+    assert demo._frame_index_for_elapsed(offsets, 3499) == 1
+    assert demo._frame_index_for_elapsed(offsets, 3500) == 2
+    assert demo._frame_index_for_elapsed(offsets, 5999) == 2
+    assert demo._frame_index_for_elapsed(offsets, 6000) == 0
+    assert demo._frame_index_for_elapsed(offsets, 7000) == 1
+
+    fractional_offsets = (0.0, 250.5, 751.5)
+    assert demo._frame_index_for_elapsed(fractional_offsets, 1252.49) == 2
+    assert demo._frame_index_for_elapsed(fractional_offsets, 1252.5) == 0
+
+
+def test_frame_index_holds_a_single_frame() -> None:
+    assert demo._frame_index_for_elapsed((0.0,), 100_000) == 0
+
+
+def test_frame_index_rejects_an_invalid_final_interval() -> None:
+    with pytest.raises(ValueError, match="Frame offsets must increase strictly"):
+        demo._frame_index_for_elapsed((0.0, 0.0), 0)
 
 
 def test_sample_contour_interpolates_between_vertices() -> None:
@@ -42,25 +75,77 @@ def test_main_reports_invalid_csv(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert "CSV header must be exactly" in capsys.readouterr().err
 
 
-def test_render_frame_draws_stars_and_contour() -> None:
-    frame = DepthFrame(0, 0, ((900, 1200), (1200, 1200)))
+@pytest.mark.parametrize(
+    ("depths", "edge_point"),
+    [
+        (((900, 1200), (1200, 1200)), (112, 72)),
+        (((900, 900), (900, 900)), (160, 72)),
+    ],
+)
+def test_render_frame_targets_contour_without_drawing_it(
+    monkeypatch: pytest.MonkeyPatch,
+    depths: tuple[tuple[int, ...], ...],
+    edge_point: tuple[int, int],
+) -> None:
+    frame = DepthFrame(0, 0, depths)
+    selection = select_depth_regions(frame)
+    surface = pygame.Surface((320, 240))
+    effects = StarEffect((320, 240))
+    targets: list[tuple[int, int]] = []
+
+    def record_targets(
+        _delta_ms: int, contour_targets: tuple[tuple[int, int], ...]
+    ) -> None:
+        targets.extend(contour_targets)
+
+    monkeypatch.setattr(effects, "update", record_targets)
+    monkeypatch.setattr(effects, "draw", lambda _surface, _elapsed_ms: None)
+
+    demo.render_frame(surface, frame, selection, effects, 0, 0)
+
+    assert edge_point in targets
+    assert (pygame.surfarray.array3d(surface) == demo._BACKGROUND).all()
+
+
+def test_render_frame_shows_target_with_particle_stars() -> None:
+    frame = DepthFrame(0, 0, ((900, 900), (900, 900)))
     selection = select_depth_regions(frame)
     surface = pygame.Surface((320, 240))
     effects = StarEffect((320, 240))
 
-    demo.render_frame(surface, frame, selection, effects, 0, 0)
+    for tick in range(160):
+        demo.render_frame(surface, frame, selection, effects, tick * 16, 16)
 
-    assert surface.get_at((123, 72))[:3] == demo._OBJECT_COLOR
-    assert surface.get_at((112, 72))[:3] == demo._CONTOUR_COLOR
+    outline = demo._sample_contour(((112, 72), (112, 168), (208, 168), (208, 72)))
+    near_outline = [
+        position
+        for position in effects.particle_positions
+        if min(math.dist(position, point) for point in outline) <= 3
+    ]
+    assert len(near_outline) >= 64
+    assert sum(
+        surface.get_at((round(x), round(y)))[0] >= 135
+        for x, y in near_outline
+    ) >= 64
 
 
-def test_run_demo_renders_then_closes_on_quit(
+@pytest.mark.parametrize(
+    ("event_type", "key"),
+    [
+        (pygame.QUIT, None),
+        (pygame.KEYDOWN, pygame.K_ESCAPE),
+        (pygame.KEYDOWN, pygame.K_q),
+    ],
+)
+def test_run_demo_renders_then_closes_on_user_request(
     monkeypatch: pytest.MonkeyPatch,
+    event_type: int,
+    key: int | None,
 ) -> None:
     monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
     monkeypatch.setenv("SDL_AUDIODRIVER", "dummy")
     sequence = load_depth_csv(EXAMPLE_CSV)
-    events = iter(([], [pygame.event.Event(pygame.QUIT)]))
+    events = iter(([], [pygame.event.Event(event_type, key=key)]))
     monkeypatch.setattr(pygame.event, "get", lambda: next(events))
     rendered_frames: list[int] = []
     render_frame = demo.render_frame
@@ -83,3 +168,48 @@ def test_run_demo_renders_then_closes_on_quit(
     assert rendered_frames == [0]
     assert len(sequence.frames[0].depths) == 4
     assert len(sequence.frames[0].depths[0]) == 4
+
+
+def test_run_demo_loops_until_quit_without_resetting_animation_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
+    monkeypatch.setenv("SDL_AUDIODRIVER", "dummy")
+    example = load_depth_csv(EXAMPLE_CSV)
+    sequence = DepthSequence(
+        tuple(
+            DepthFrame(frame.frame, frame.time_ms + 5000, frame.depths)
+            for frame in example.frames
+        )
+    )
+    elapsed_values = (0, 2999, 3000, 5999, 6000, 8999, 9000, 12000, 18000)
+    ticks = iter([10_000] + [10_000 + elapsed for elapsed in elapsed_values])
+    events = iter(
+        [[] for _ in elapsed_values] + [[pygame.event.Event(pygame.QUIT)]]
+    )
+    monkeypatch.setattr(pygame.time, "get_ticks", lambda: next(ticks))
+    monkeypatch.setattr(pygame.event, "get", lambda: next(events))
+
+    class ImmediateClock:
+        def tick(self, _fps: int) -> None:
+            pass
+
+    monkeypatch.setattr(pygame.time, "Clock", lambda: ImmediateClock())
+    rendered: list[tuple[int, int]] = []
+
+    def record_frame(
+        _surface: pygame.Surface,
+        frame: DepthFrame,
+        _selection: demo.DepthSelection,
+        _effects: StarEffect,
+        elapsed_ms: int,
+        _delta_ms: int,
+    ) -> None:
+        rendered.append((frame.frame, elapsed_ms))
+
+    monkeypatch.setattr(demo, "render_frame", record_frame)
+
+    demo.run_demo(sequence)
+
+    assert [frame for frame, _ in rendered] == [0, 0, 1, 1, 2, 2, 0, 1, 0]
+    assert [elapsed for _, elapsed in rendered] == list(elapsed_values)

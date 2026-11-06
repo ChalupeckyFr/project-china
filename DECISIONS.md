@@ -52,7 +52,7 @@ stav `navrh` nebo `ke-schvaleni`.
 - Důvod: Člověk výslovně schválil uvedený seznam ID.
 - Důsledky: Schválené záznamy v `SPEC.md` odkazují na DEC-001. FR-007, tlačítkové přepínání módů na Raspberry Pi, není součástí tohoto přírůstku. Otevřené otázky Q-002, Q-004, Q-005 a Q-006 neblokují schválené demo.
 - Stav: prijato
-- Nahrazuje / Nahrazeno: –
+- Nahrazuje / Nahrazeno: – / částečně v části samostatného průletu v demu ve FR-004 a AC-001 nahrazeno [DEC-013](DECISIONS.md#dec-013).
 - Schválení:
   - Rozsah: CON-001, FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-008, NFR-001 a AC-001.
   - Revize: `SPEC.md` a `CON-001` ve znění schváleném dne 2026-11-06, identifikované výše uvedenými ID.
@@ -132,7 +132,7 @@ stav `navrh` nebo `ke-schvaleni`.
 - Důvod: Návrh pokrývá požadovaný hvězdný efekt a umožňuje vizuální ladění bez předčasného výběru grafického enginu.
 - Důsledky: Koeficient přitažlivosti je bezrozměrný a jeho hodnotu lze určit při vizuálním ladění podle [Q-003](PROJECT.md#q-003). Konkrétní počty, barvy, tvar a velikost objektového prvku zatím nejsou stanoveny a vizuální výsledek bude předložen člověku; žádné číselné cíle se nepředpokládají. Výkon ani plynulost na konkrétním zařízení nebyly změřeny. Tlačítka a přepínání módů zůstávají mimo první přírůstek.
 - Stav: prijato
-- Nahrazuje / Nahrazeno: –
+- Nahrazuje / Nahrazeno: – / částečně v části samostatného kruhového prvku pro demo nahrazeno [DEC-012](DECISIONS.md#dec-012) a v části samostatného průletu v demu [DEC-013](DECISIONS.md#dec-013).
 - Schválení:
   - Rozsah: DEC-005, doporučené CPU vykreslování a uvedené chování efektů.
   - Revize: `DECISIONS.md`, návrhy DEC-002 až DEC-006 před zapsáním souhlasu dne 2026-11-06; SHA-256 souboru `0d309f74e7ba5ce0d80138026ba92d51b5a86ce0fcfcde83342d369e823dbe40`.
@@ -206,10 +206,82 @@ stav `navrh` nebo `ke-schvaleni`.
 - Důvod: Přímá odpověď člověka: „Přijímám výsledek a provizorní parametry“ po předložení sekvence zvedání paží a snímků vykreslení.
 - Důsledky: Pro první demo jsou přijaty pevné parametry: 72 částic, přitažlivost 0,08 na kroku 60 Hz, náběh 180 ms, uvolnění s časovou konstantou 700 ms, průlet každé 3 s po dobu 750 ms a kruhový obrys s poloměrem 12 px. Akceptace se vztahuje na syntetickou posloupnost, nikoli na kameru, produkční data nebo výkon na jiném zařízení.
 - Stav: prijato
-- Nahrazuje / Nahrazeno: –
+- Nahrazuje / Nahrazeno: – / kruhový prvek a samostatný průlet byly z následné revize odstraněny podle [DEC-012](DECISIONS.md#dec-012) a [DEC-013](DECISIONS.md#dec-013); akceptace zde uvedené revize zůstává historická.
 - Schválení:
   - Rozsah: Vizuální výsledek T-008 a výše uvedené pevné parametry prvního dema.
   - Revize: Pracovní kopie nad HEAD `c07b45a`; SHA-256 `src/project_china/demo.py`: `913F16D250AB139D469A70929FC6C664A63E56A23841E2DDCA235FD322B23210`; `src/project_china/effects.py`: `A4C89CD7EC8F486E8737E63040D7831E5BB498E78C0D2DA7421FA3596FD9B511`; náhled `T-008-preview.png`: `FBD778F13FE005B9B0268B3F8F150A0721D8DD7B39ACE556095E239497B43FF0`; detail `T-008-raised-frame.png`: `FAEA35DC85AE9A3E9CEE7342F080E37C0001F94D720F7CCBBBC4397DDF4C3692`.
   - Schválil: člověk
   - Datum: 2026-11-06
   - Podmínky / výjimky: Ověření bylo provedeno na syntetické postavě 24×32 vytvořené v paměti; skutečný záznam z kamery ani produkční zařízení nebyly součástí akceptace.
+
+## DEC-010
+
+- Předmět: Zobrazení postavy či objektu hvězdami bez kresleného obrysu
+- Typ: schvaleni-rozsahu
+- Kontext: Po přijetí předchozí revize v [DEC-009](DECISIONS.md#dec-009) člověk požádal o změnu její vizuální podoby.
+- Varianty: Ponechat obrysovou čáru, nebo ji odstranit a tvar nadále zobrazovat hvězdami.
+- Výsledek: Člověk zadal odstranění vykreslované obrysové čáry postavy či objektu, aby byl tvar vidět z hvězd.
+- Důvod: Přímý požadavek člověka: „odstraň outlinu objektu/postavy, aby to bylo vidět z hvězd“.
+- Důsledky: Obrys zůstává interním vstupem pro částice; samostatný kruhový objektový prvek a dosavadní pevné parametry se nemění. DEC-009 zůstává dokladem přijetí předchozí revize; nový vzhled tím není automaticky produktově přijat.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: – / částečně v části zachování kruhového prvku nahrazeno [DEC-012](DECISIONS.md#dec-012) a v části zachování samostatného průletu [DEC-013](DECISIONS.md#dec-013).
+- Schválení:
+  - Rozsah: Odstranit přímou kresbu obrysu cíle a zachovat jeho zobrazení pomocí hvězd.
+  - Revize: Výslovný požadavek člověka nad stavem projektu na HEAD `553cc19`.
+  - Schválil: člověk
+  - Datum: 2026-11-06
+  - Podmínky / výjimky: Požadavek není akceptací nového vizuálního výsledku; samostatný kruhový prvek nebyl součástí výslovného požadavku.
+
+## DEC-011
+
+- Předmět: Třísekundové kroky a opakování ukázky
+- Typ: schvaleni-rozsahu
+- Kontext: Člověk požádal o delší rozestup mezi skoky snímků při spuštění ukázkového CSV a o nepřetržité přehrávání.
+- Varianty: Zachovat původní časování a zastavení na posledním snímku, nebo prodloužit kroky a opakovat posloupnost.
+- Výsledek: Člověk zvolil 3 sekundy mezi skoky a opakování až do vypnutí dema.
+- Důvod: Přímá odpověď člověka: „3 pro skoky a loopni to, aby to běželo dokud to nevypnu“.
+- Důsledky: Ukázkový soubor má kroky po 3 sekundách; ostatní CSV zachovávají své časové značky podle [DEC-003](DECISIONS.md#dec-003). Pro dobu posledního snímku agent použil odstup posledních dvou snímků; jediný snímek zůstává zobrazený. Požadavek nepředstavuje produktovou akceptaci nové revize.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: –
+- Schválení:
+  - Rozsah: Třísekundový odstup ukázkových snímků a opakování až do uživatelského ukončení.
+  - Revize: Pracovní kopie nad HEAD `553cc19` včetně předchozí úpravy T-009; SHA-256 `src/project_china/demo.py`: `5634ABABF3A83D0B9DB57A6C765F313D50ACDC6744ECA2E4F36D0633D078B9F4`; `examples/moving_object.csv`: `5D0356DF8E18D263B49B23C007ED3A72046DD4308FCA9AFED130DB64874BDE72`.
+  - Schválil: člověk
+  - Datum: 2026-11-06
+  - Podmínky / výjimky: Třísekundový interval je nastaven v ukázkovém CSV, nikoli vnucen ostatním souborům; další vizuální akceptace zůstává samostatná.
+
+## DEC-012
+
+- Předmět: Odstranění kolečka uvnitř postavy či objektu
+- Typ: schvaleni-rozsahu
+- Kontext: V demu zůstal po úpravě T-009 samostatný kruhový prvek dříve přijatý v [DEC-009](DECISIONS.md#dec-009).
+- Varianty: Kolečko zachovat, nebo odstranit a ponechat vykreslení cíle pomocí hvězd.
+- Výsledek: Člověk zadal odstranění kolečka uvnitř objektu.
+- Důvod: Přímý požadavek člověka: „odstraň to kolečko uvnitř objektu“.
+- Důsledky: Samostatný kruhový prvek se v demu nevykresluje. Obrys zůstává interním vstupem částic; parametry hvězd a přehrávání se nemění. DEC-009 zůstává historickým dokladem přijetí své původní revize.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: Částečně [DEC-005](DECISIONS.md#dec-005) a [DEC-010](DECISIONS.md#dec-010), pouze v části samostatného kruhového prvku pro toto demo / částečně v části zachování samostatného průletu nahrazeno [DEC-013](DECISIONS.md#dec-013).
+- Schválení:
+  - Rozsah: Odstranit samostatně kreslené kolečko uvnitř cíle; zachovat hvězdy a jejich chování.
+  - Revize: Pracovní kopie nad HEAD `553cc19` včetně T-009 a T-010; SHA-256 `src/project_china/demo.py`: `669A8065A002A285ECD721304E2563250136AEDF2D82E5275F3746DC707B704E`.
+  - Schválil: člověk
+  - Datum: 2026-11-06
+  - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize.
+
+## DEC-013
+
+- Předmět: Odstranění prolétající hvězdy v pozadí dema
+- Typ: schvaleni-rozsahu
+- Kontext: Demo obsahuje samostatný periodický průlet hvězdy v pozadí podle původního rozsahu [DEC-001](DECISIONS.md#dec-001) a technického rozhodnutí [DEC-005](DECISIONS.md#dec-005).
+- Varianty: Průlet zachovat, nebo ho odstranit při zachování ostatních hvězd a jejich animace.
+- Výsledek: Člověk zadal odstranění prolétající hvězdy v pozadí.
+- Důvod: Přímý požadavek člověka: „odstraň létající hvězdu v pozadí“.
+- Důsledky: Demo nevykresluje samostatnou prolétající hvězdu ani její stopu; ostatní hvězdy, částice a přehrávání zůstávají zachovány. [DEC-009](DECISIONS.md#dec-009) zůstává historickým dokladem přijetí své původní revize.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: Částečně [DEC-001](DECISIONS.md#dec-001), [DEC-005](DECISIONS.md#dec-005), [DEC-010](DECISIONS.md#dec-010) a [DEC-012](DECISIONS.md#dec-012), pouze v části samostatného průletu v demu / –.
+- Schválení:
+  - Rozsah: Odstranit samostatnou prolétající hvězdu v pozadí dema; ostatní hvězdy a jejich chování zachovat.
+  - Revize: Výslovný požadavek nad pracovní kopií na HEAD `553cc19` včetně T-009 až T-011.
+  - Schválil: člověk
+  - Datum: 2026-11-06
+  - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize ani změnou požadavků pro ostatní prostředí.
