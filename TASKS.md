@@ -47,8 +47,8 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
 - Hotovo když: Konfigurace odpovídá DEC-002 a DEC-006, neobsahuje tvrzení o neověřené instalaci a dokumentuje další bezpečný krok.
 - Ověření:
   - Plán: Staticky projít vytvořenou konfiguraci a dokumentaci proti uvedeným rozhodnutím; dostupnost příkazů a případné neověřené části výslovně zaznamenat.
-  - Výsledek: dosud neprovedeno
-- Stav: pripraveno
+  - Výsledek: Proti revizi worktree `7d71824`: PowerShell statická kontrola potvrdila existenci `.gitignore`, `requirements.txt`, `requirements-dev.txt` a `src/project_china/__init__.py`, schválené názvy závislostí a upozornění na neprovedenou instalaci v README. `Get-Command` nalezl příkazy `python` a `py`; jejich verze, běh a dostupnost balíků nebyly ověřeny. Instalace ani testy neproběhly.
+- Stav: dokonceno
 - Poznámky: Tento úkol neuděluje oprávnění k instalaci.
 
 ## T-002
@@ -62,9 +62,9 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
 - Hotovo když: Oprávnění je doloženo, prostředí obsahuje potřebné závislosti a jejich skutečná dostupnost byla ověřena.
 - Ověření:
   - Plán: Po získání oprávnění ověřit importy a zaznamenat skutečné verze, prostředí, výstup i případná selhání.
-  - Výsledek: dosud neprovedeno
-- Stav: nezahajeno
-- Poznámky: Blokuje jej T-001 a chybějící samostatný souhlas k instalaci.
+  - Výsledek: Na Windows byl nejprve dostupný pouze CPython 3.14.7; instalace příkazem `$venvPython = (Resolve-Path '.venv\Scripts\python.exe').Path; & $venvPython -m pip install -r requirements-dev.txt` selhala při sestavování Pygame 2.6.1 chybou `ModuleNotFoundError: setuptools._distutils.msvccompiler`. Po výslovném souhlasu DEC-008 byl příkazem `winget install --id Python.Python.3.13 --exact --source winget --scope user --silent --accept-package-agreements --accept-source-agreements` nainstalován CPython 3.13.17 x64 od Python Software Foundation. Původní prostředí bylo zachováno jako `.venv-py314-failed`; nové `.venv` vytvořeno příkazem `py -3.13 -m venv .venv`. Instalace příkazem `$venvPython = (Resolve-Path '.venv\Scripts\python.exe').Path; & $venvPython -m pip install -r requirements-dev.txt` proběhla úspěšně. Importy `numpy`, `cv2`, `pygame` a `pytest` prošly; `.\.venv\Scripts\ruff.exe --version` potvrdil běh Ruff. Ověřené verze: Python 3.13.17, pip 26.2.2, numpy 2.5.4, opencv-python 5.0.0.93 (cv2 5.0.0), pygame 2.6.1, pytest 9.2.0 a ruff 0.17.4. Testy neběžely, jejich příprava je T-003.
+- Stav: dokonceno
+- Poznámky: Instalace byla provedena pouze v uživatelském rozsahu; závislosti ani jejich deklarace se neměnily.
 
 ## T-003
 

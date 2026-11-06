@@ -6,9 +6,9 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 ## Fáze
 
-- Fáze: `planovani-prirustku`
+- Fáze: `realizace`
 - Od: 2026-11-06
-- Poslední změna fáze: člověk schválil technická rozhodnutí DEC-002 až DEC-006
+- Poslední změna fáze: T-002 dokončen; další je T-003
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-První připravený úkol: `T-001` (`/work-task T-001`).
+Další je `T-003`; závislosti T-002 jsou připravené a ověřené.
 
 ## Bod pokračování
 
 - Aktivní úkol: žádný
-- Poslední dokončená činnost: záznam schválených technických rozhodnutí a plánu prvního přírůstku
-- Neověřené změny ve worktree: toolchain, výkon a kompatibilita nebyly ověřeny; implementace dema nezačala
-- Další bezpečný krok: spustit `/work-task T-001`; k instalaci v T-002 je nutný samostatný souhlas
+- Poslední dokončená činnost: příprava a ověření prostředí v T-002
+- Neověřené změny ve worktree: žádné; neúspěšné prostředí Pythonu 3.14 je zachováno jako `.venv-py314-failed`
+- Další bezpečný krok: zahájit T-003 v ověřeném prostředí `.venv`
 
 ## Otevřené otázky
 
@@ -96,6 +96,14 @@ Formát záznamu (vzor, není záznam):
 - Rozhodne: člověk
 - Stav: vyreseno
 - Výsledek: Parametry jsou pevně dané v demu i produkci; obsluha je nenastavuje. Návštěvník později tlačítkem přepíná mód nebo efekt.
+
+## Q-008
+
+- Otázka: Jak odblokovat T-002 po selhání sestavení Pygame 2.6.1 na dostupném CPythonu 3.14.7?
+- Blokuje: T-002, DEC-002
+- Rozhodne: člověk
+- Stav: vyreseno
+- Výsledek: Člověk zvolil zachování Pygame a povolil instalaci kompatibilního Pythonu; postup a oprávnění jsou zaznamenány v [DEC-008](DECISIONS.md#dec-008). CPython 3.13.17 umožnil úspěšně nainstalovat a ověřit závislosti.
 
 ## Provozní omezení
 

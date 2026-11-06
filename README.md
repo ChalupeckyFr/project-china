@@ -42,7 +42,24 @@ Otevři odpovídající soubor v `.github/prompts/`, zkopíruj jeho tělo (čás
 frontmatterem) jako zadání agentovi a připoj pokyn, aby nejprve načetl
 `AGENTS.md` a `PROJECT.md`.
 
+## Příprava vývojového prostředí
+
+Závislosti jsou uvedeny v [`requirements.txt`](requirements.txt) a
+[`requirements-dev.txt`](requirements-dev.txt). V rámci T-002 bylo po
+oprávněních DEC-007 a DEC-008 ověřeno prostředí CPython 3.13.17 a nainstalovány
+deklarované závislosti. Původní neúspěšné prostředí Pythonu 3.14 zůstalo
+zachováno jako `.venv-py314-failed`.
+
+```powershell
+py -3.13 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+```
+
+Ověřeno na Windows s CPythonem 3.13.17 x64. Před vytvořením prostředí
+ověř, že `.venv` ještě neexistuje.
+
 ## Co tu (zatím) není
 
-Instalace, spouštění, CI, licence a architektura aplikace budou doplněny až
-po příslušných rozhodnutích v `DECISIONS.md`. Nehledej je zde dříve.
+Implementace, spuštění aplikace, CI a licence zatím nejsou připravené.
+Architekturu a základní závislosti stanovují
+schválené záznamy v `DECISIONS.md`.
