@@ -92,6 +92,12 @@ finally {
 }
 ```
 
+Totéž z kořene repozitáře spustí `.\runObject.ps1`. Skript `.\runHuman.ps1`
+spustí detailního člověka; pokud `examples/human_motion.csv` neexistuje,
+nejprve ho vygeneruje, jinak použije existující soubor. Při omezující
+execution policy použij např.
+`powershell -ExecutionPolicy Bypass -File .\runHuman.ps1`.
+
 Ukázkový objekt se posouvá každé 3 sekundy. Posloupnost se opakuje až do
 zavření okna; u jiných CSV demo zachovává jejich časové značky. Poslední
 snímek zobrazí stejně dlouho, jako trval odstup dvou posledních snímků.
