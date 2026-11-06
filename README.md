@@ -73,14 +73,31 @@ Spusť test importu a statickou kontrolu z kořene repozitáře:
 `frame,time_ms,x,y,depth`. Každý snímek musí mít jednotný čas a úplnou
 obdélníkovou mřížku stejných rozměrů; hloubky se vracejí v paměti po řádcích
 od `y=0`, bez ukládání zpracovaných dat. Neplatný vstup vyvolá
-`DepthCsvError`. Syntetická posloupnost pohybu je vytvářena pouze v testu.
+`DepthCsvError`.
 
 `project_china.selection.select_depth_regions(frame)` vybírá hodnoty včetně
 obou mezí 750–1000 a vrací binární masku i obrysy všech oddělených oblastí.
 Prázdný výběr vrací prázdnou množinu obrysů, nikoli chybu.
 
+Lokální demo spustíš s explicitní cestou k jednomu CSV souboru; jako příklad
+slouží syntetická posloupnost `examples/moving_object.csv`:
+
+```powershell
+Push-Location src
+try {
+    ..\.venv\Scripts\python.exe -m project_china.demo ..\examples\moving_object.csv
+}
+finally {
+    Pop-Location
+}
+```
+
+Příklad je vymyšlený testovací vstup, ne záznam z kamery. Demo žádná zpracovaná
+hloubková data neukládá. Volba pevného vzorku nebo souborů přes uživatelské
+rozhraní zůstává otevřená v Q-004. Okno lze zavřít klávesou `Esc` nebo `q`.
+
 ## Co tu (zatím) není
 
-Vykreslovací demo, spuštění aplikace, CI a licence zatím nejsou připravené.
+CI a licence zatím nejsou připravené.
 Architekturu a základní závislosti stanovují
 schválené záznamy v `DECISIONS.md`.

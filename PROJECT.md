@@ -8,7 +8,7 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 - Fáze: `realizace`
 - Od: 2026-11-06
-- Poslední změna fáze: T-005 dokončen
+- Poslední změna fáze: T-006 dokončen
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-Další je T-006; T-005 poskytuje masku a obrysy pro platné snímky.
+Další je T-007; T-006 propojuje CSV, obrysy a základní hvězdný výstup.
 
 ## Bod pokračování
 
 - Aktivní úkol: žádný
-- Poslední dokončená činnost: výběr hloubek a získání obrysů v T-005
+- Poslední dokončená činnost: propojený průchod syntetickým CSV v lokálním okně v T-006
 - Neověřené změny ve worktree: žádné
-- Další bezpečný krok: zahájit T-006
+- Další bezpečný krok: zahájit T-007; plná vizuální akceptace AC-001 zůstává otevřená
 
 ## Otevřené otázky
 

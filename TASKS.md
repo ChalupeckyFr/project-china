@@ -122,8 +122,8 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
 - Hotovo když: Minimální propojený průchod funguje nad syntetickým vstupem a poskytuje pozorovatelný výstup. Úplné splnění AC-001 se v tomto úkolu nepředpokládá.
 - Ověření:
   - Plán: Spustit cílenou integrační kontrolu a ověřit průchod jednou posloupností v lokálním okně; doložit prostředí, výstupy a neprovedené vizuální kontroly.
-  - Výsledek: dosud neprovedeno
-- Stav: nezahajeno
+  - Výsledek: V CPythonu 3.13.17 propojeno načtení ukázkového CSV, časování snímků, výběr obrysů a kreslení hvězd do okna 960×720; cesta k CSV je povinný argument, bez výchozí volby souboru (Q-004 zůstává otevřená). Testy ověřují časový průchod, vykreslení pixelů, hlášení chybného CSV a běh s SDL dummy oknem; `& '.venv\Scripts\python.exe' -m pytest -q` skončil `23 passed in 0.62s`, Ruff `All checks passed!`. Nativní Pygame okno bylo spuštěno nad `examples/moving_object.csv`, mělo titulek `Project China - depth demo` a zavřelo se událostí QUIT. Testy neběží nad kamerou; úplná vizuální akceptace AC-001 zůstává neprovedená.
+- Stav: dokonceno
 - Poznámky: Kamera, síťová služba a tlačítkové přepínání nejsou součástí řezu.
 
 ## T-007
