@@ -206,7 +206,7 @@ stav `navrh` nebo `ke-schvaleni`.
 - Důvod: Přímá odpověď člověka: „Přijímám výsledek a provizorní parametry“ po předložení sekvence zvedání paží a snímků vykreslení.
 - Důsledky: Pro první demo jsou přijaty pevné parametry: 72 částic, přitažlivost 0,08 na kroku 60 Hz, náběh 180 ms, uvolnění s časovou konstantou 700 ms, průlet každé 3 s po dobu 750 ms a kruhový obrys s poloměrem 12 px. Akceptace se vztahuje na syntetickou posloupnost, nikoli na kameru, produkční data nebo výkon na jiném zařízení.
 - Stav: prijato
-- Nahrazuje / Nahrazeno: – / kruhový prvek a samostatný průlet byly z následné revize odstraněny podle [DEC-012](DECISIONS.md#dec-012) a [DEC-013](DECISIONS.md#dec-013); počet částic pro detailního člověka změnilo [DEC-015](DECISIONS.md#dec-015); akceptace zde uvedené revize zůstává historická.
+- Nahrazuje / Nahrazeno: – / kruhový prvek a samostatný průlet byly z následné revize odstraněny podle [DEC-012](DECISIONS.md#dec-012) a [DEC-013](DECISIONS.md#dec-013); počet částic pro detailního člověka změnilo [DEC-015](DECISIONS.md#dec-015); přitažení 0,08 nahradila pružina podle [DEC-018](DECISIONS.md#dec-018); akceptace zde uvedené revize zůstává historická.
 - Schválení:
   - Rozsah: Vizuální výsledek T-008 a výše uvedené pevné parametry prvního dema.
   - Revize: Pracovní kopie nad HEAD `c07b45a`; SHA-256 `src/project_china/demo.py`: `913F16D250AB139D469A70929FC6C664A63E56A23841E2DDCA235FD322B23210`; `src/project_china/effects.py`: `A4C89CD7EC8F486E8737E63040D7831E5BB498E78C0D2DA7421FA3596FD9B511`; náhled `T-008-preview.png`: `FBD778F13FE005B9B0268B3F8F150A0721D8DD7B39ACE556095E239497B43FF0`; detail `T-008-raised-frame.png`: `FAEA35DC85AE9A3E9CEE7342F080E37C0001F94D720F7CCBBBC4397DDF4C3692`.
@@ -335,7 +335,40 @@ stav `navrh` nebo `ke-schvaleni`.
 - Nahrazuje / Nahrazeno: Částečně [DEC-011](DECISIONS.md#dec-011), pouze v okamžitém skoku mezi pozicemi / –.
 - Schválení:
   - Rozsah: Morfování obrysu bez interpolace hloubky, přechod nejvýše 600 ms; číselné parametry jsou volbou agenta.
-  - Revize: Pracovní kopie nad HEAD `88207f6`; SHA-256 `src/project_china/morph.py`: `FA0D76DAEFA6370B61D1C03E4B3B755A4C0DACF44885A5E262ED67F5BE6EAF16`, `src/project_china/demo.py`: `5EEE66BC7F5C479E8107634C1828542DDBA21E2BCA2269BD4FF784F7693B000A`, `src/project_china/effects.py`: `A5B941408020BD522008BBA94B5928E91598EF9C6E25CFB962FC5AE0CB1A90D6`.
+  - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize.
+
+## DEC-017
+
+- Předmět: Realistický anatomický model syntetického člověka
+- Typ: schvaleni-rozsahu
+- Kontext: Postava z [T-013](TASKS.md#t-013) měla končetiny s konstantní šířkou, válcový trup, ostré zářezy v podpaží a u krku, výstupky na hlavě a strnulé prsty. Člověk zadal úpravu generátoru: zužované kapsle, trojdílný trup s pasem asi 75 % ramen, smin s k = 0,12–0,18, hladkou hlavu, krk 45–50 % hlavy, kompaktní dlaně, 2.5D hloubkový spád, easing `sin²` nebo kubický, zvedání pivotu ramene o 5–8 % výšky trupu nad horizontálou, ohyb lokte 10–20° a modulaci hrudníku. Formát dat a rozhraní se nemají měnit.
+- Varianty: smin faktor v metrech (k = 0,15 m) nebo v jednotkách šířky hlavy; easing kubický nebo `sin²`.
+- Výsledek: Agent zvolil `SMIN_K = 0.15` v jednotkách šířky hlavy (asi 2,5 cm), easing `sin²`, pas 0,75 × 0,41 m, krk 0,46 šířky hlavy, zvednutí ramene 6,5 % výšky trupu a posun ke krku 2 cm (obojí nastupuje plynule od horizontály), ohyb lokte 10 + 10·sin(π·zvednutí) a dýchání ±1,2 % s rozšířením hrudníku o 1,5 % při vzpažení.
+- Důvod: k = 0,15 m by vyplnilo asi 6 cm širokou mezeru mezi visící paží a trupem a vznikla by blána. Kubický easing měl uprostřed pohybu dvojnásobnou rychlost oproti `sin²` a porušil test plynulosti obrysu mezi snímky (12 px > 10 px). Obě volby leží v rámci zadání.
+- Důsledky: CSV i API zůstávají beze změny, ale `examples/human_motion.csv` bylo nutné přegenerovat. Model už nemá uši ani jednotlivé prsty. Hloubkový objem zatím renderer nevyužívá (doplněno v [DEC-018](#dec-018)). Požadavky na fyziku částic (pružina, odpuzování, částice uvnitř objemu) z předchozí zprávy člověka nahradilo toto zadání a nejsou realizovány (realizovány později v [DEC-018](#dec-018)).
+- Stav: prijato
+- Nahrazuje / Nahrazeno: Částečně [DEC-014](DECISIONS.md#dec-014), pouze v modelované anatomii a pohybu / –.
+- Schválení:
+  - Rozsah: Úprava generátoru syntetického člověka podle zadání člověka; číselné parametry v povolených rozmezích a jednotka faktoru smin jsou volbou agenta. Smazání a přegenerování `examples/human_motion.csv` člověk výslovně povolil.
+  - Revize: Pracovní kopie nad HEAD `51c92cf`; SHA-256 `src/project_china/synthetic_human.py`: `1498246E0588AC6108D8526806D3BFF063D37745BB1127992E6DF2531F598DED`, `tests/test_synthetic_human.py`: `7CAB28A50CB454A9F7B4FB8B7402FB7D4797A3AD437B94FBDAB4634F590F6A57`.
+  - Schválil: člověk
+  - Datum: 2026-11-07
+  - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize.
+
+## DEC-018
+
+- Předmět: 2.5D objem částic, pružinová fyzika a turbulence hvězd
+- Typ: schvaleni-rozsahu
+- Kontext: Člověk zadal úpravu rendereru: cílové body i uvnitř těla s hustotou podle gradientu hloubky, Z-hloubku na velikost (+30–50 %) a alfu (blízko 0,8–1,0, daleko 0,25–0,5), jitter ±1,5–2,5 px, pružinu se stiffness 0,12 a damping 0,85, odrážení volných hvězd rychlými končetinami v poloměru 20–35 px s turbulencí a tlumeným návratem, předalokovaná pole pro všechny částice a striktní oddělení datové vrstvy od vykreslování.
+- Varianty: Objem pro všechna dema, nebo volitelně počtem částic; normalizace hloubky pevným rozsahem, nebo min/max na snímek; kreslení `draw.circle`, nebo aditivní gaussovské skvrny.
+- Výsledek: Agent zvolil: geometrii objemu v samostatném modulu `volume.py` (paprsky dovnitř obrysu, 12 vrstev na kvantilech váhy `0,25 + gradient/medián`), který renderer dostává jen jako body obrazovky a hloubky (`BodyTargets`); objem volitelný přepínačem `--volume-particles` (výchozí 0, `runHuman.ps1` 1500); normalizaci hloubky min/max přes cíle snímku (plochá hloubka = blízko); velikost +40 %, alfu 0,30–1,00 se třpytem ±15 %; jitter po kružnici s poloměrem 1,5–2,5 px pomalu rotující 0,3–0,9 rad/s; pružinu na referenční tik 1/60 s s podkroky a stropem 40 px/tik; poloměr odpuzování 28 px, práh rychlé končetiny 150 px/s, kolmou turbulenci ±35 % a návrat hvězdy pružinou 2,5/s² s tlumením 3/s; kreslení částic aditivními gaussovskými skvrnami 4×4 do předalokovaného bufferu.
+- Důvod: Objekt 4×4 objem nepotřebuje a s menším počtem částic zůstává jeho obrys čitelný. Min/max na snímek funguje pro libovolný rozsah hloubek bez ladění. Gaussovské skvrny umožní subpixelovou polohu a plynulou změnu velikosti; rotující jitter rozbije rastr bez blikání. Všechny číselné volby leží v zadaných rozmezích.
+- Důsledky: Pružina nahrazuje lineární přitažení 0,08 z [DEC-009](#dec-009); náběh 180 ms a uvolnění 700 ms zůstávají. `StarEffect.update` přijímá `BodyTargets` i prostou posloupnost bodů. Nativní okno nebylo ověřeno.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: Částečně [DEC-009](#dec-009), pouze v koeficientu přitažení částic / –.
+- Schválení:
+  - Rozsah: Úprava rendereru a částicového systému podle zadání člověka; číselné parametry v povolených rozmezích, volitelnost objemu a normalizace hloubky jsou volbou agenta.
+  - Revize: Pracovní kopie nad HEAD `51c92cf`; SHA-256 `src/project_china/volume.py`: `80E1D1E63AF89299743DE2FC52672F06A87AF6D1EB465E98D472227107D2F4E1`, `src/project_china/effects.py`: `D5CE08D90EFBD1AC36DDE60F3FF38FEC9945A1622766817694E8D1F9E00BDE14`, `src/project_china/demo.py`: `E5E97E77CBA8A46D84179F15C0A50428E2F9346B03EB3978284684B7697DB3ED`, `runHuman.ps1`: `2B34B1726A7478B31B23A2F887923BF6D9F3DF4CCD79873ACDE5C7A6453CE4CD`, `tests/test_volume.py`: `778E5FA1CC33312D65D03756693D26F94AD42026CD907D8F98C68E59E8712065`, `tests/test_effects.py`: `504F8EAAF71519FE61ACCC1712841D14F56829D3BD3A3417EEF597CD0A46E39E`, `tests/test_demo.py`: `F0E152DF02D811A51EC8D427D85BF18B2A6A6A696552207568894C0E0D98A93D`.
   - Schválil: člověk
   - Datum: 2026-11-07
   - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize.

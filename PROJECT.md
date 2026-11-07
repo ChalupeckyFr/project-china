@@ -8,7 +8,7 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 - Fáze: `akceptace-prirustku`
 - Od: 2026-11-06
-- Poslední změna fáze: plynulé morfování obrysu T-015 je technicky ověřeno
+- Poslední změna fáze: 2.5D objem, pružinová fyzika a turbulence v rendereru T-017 jsou technicky ověřeny
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-Člověk může spustit `runHuman.ps1` a `runObject.ps1` a posoudit plynulost přechodů obrysu.
+Člověk může spustit `runHuman.ps1` a posoudit objemové vykreslení, dobíhání hvězd a víření pozadí (T-017).
 
 ## Bod pokračování
 
 - Aktivní úkol: žádný
-- Poslední dokončená činnost: plynulé morfování obrysu mezi snímky podle T-015
-- Neověřené změny ve worktree: necommitnutá T-015; lidské posouzení nového vzhledu; skutečná kamera a produkční zařízení nebyly ověřeny
-- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-015
+- Poslední dokončená činnost: renderer s 2.5D objemem, pružinou a turbulencí podle T-017 (předtím anatomie T-016)
+- Neověřené změny ve worktree: necommitnuté T-016 a T-017; lidské posouzení nového vzhledu; nativní okno, skutečná kamera a produkční zařízení nebyly ověřeny
+- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-016 a T-017
 
 ## Otevřené otázky
 

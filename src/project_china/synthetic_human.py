@@ -2,6 +2,7 @@ import argparse
 import csv
 import math
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
 
@@ -20,58 +21,178 @@ _VIEW_TOP = 1.82
 _FloatMap = NDArray[np.float64]
 _Point = tuple[float, float, float]
 
+# Body dimensions in metres; the camera looks along +z, smaller z is closer.
+HEAD_RADII: _Point = (0.082, 0.112, 0.088)
+HEAD_WIDTH = 2 * HEAD_RADII[0]
+NECK_WIDTH = 0.46 * HEAD_WIDTH
+SHOULDER_WIDTH = 0.41
+WAIST_WIDTH = 0.75 * SHOULDER_WIDTH
+_SHOULDER_HEIGHT = 0.475
+_CROTCH_HEIGHT = -0.200
+TORSO_HEIGHT = _SHOULDER_HEIGHT - _CROTCH_HEIGHT
+
+# Polynomial smooth-minimum factor, expressed in head widths (about 2.5 cm).
+SMIN_K = 0.15
+_BLEND = SMIN_K * HEAD_WIDTH
+_DEPTH_BLEND = 0.050
+_EDGE_FALLOFF = 0.010
+
+REST_ARM_ANGLE = 8.0
+RAISED_ARM_ANGLE = 158.0
+SHOULDER_LIFT = 0.065 * TORSO_HEIGHT
+SHOULDER_INSET = 0.020
+_UPPER_ARM_LENGTH = 0.300
+_FOREARM_LENGTH = 0.255
+
+
+@dataclass(frozen=True)
+class HumanPose:
+    """Pose parameters of one frame; angles are in degrees from hanging down."""
+
+    raised: float
+    upper_arm_angle: float
+    elbow_flex: float
+    shoulder_lift: float
+    shoulder_inset: float
+    chest_scale: float
+    sway: float
+
+
+def _ease_in_out_sine(value: float) -> float:
+    """sin^2 easing: zero speed at both turning points, peak slope pi/2."""
+    return math.sin(math.pi / 2 * value) ** 2
+
+
+def _smoothstep(value: float) -> float:
+    value = min(max(value, 0.0), 1.0)
+    return value * value * (3 - 2 * value)
+
+
+def human_pose(frame_index: int) -> HumanPose:
+    if not 0 <= frame_index < FRAME_COUNT:
+        raise ValueError(f"Frame index must be between 0 and {FRAME_COUNT - 1}.")
+
+    phase = frame_index / FRAME_COUNT
+    progress = 1 - abs(2 * phase - 1)
+    raised = _ease_in_out_sine(progress)
+    upper_arm_angle = REST_ARM_ANGLE + (RAISED_ARM_ANGLE - REST_ARM_ANGLE) * raised
+    elevation = _smoothstep((upper_arm_angle - 90) / (RAISED_ARM_ANGLE - 90))
+    breathing = math.sin(2 * math.tau * phase)
+    return HumanPose(
+        raised=raised,
+        upper_arm_angle=upper_arm_angle,
+        elbow_flex=10 + 10 * math.sin(math.pi * raised),
+        shoulder_lift=SHOULDER_LIFT * elevation,
+        shoulder_inset=SHOULDER_INSET * elevation,
+        chest_scale=1 + 0.012 * breathing + 0.015 * raised,
+        sway=0.008 * math.sin(math.tau * phase),
+    )
+
+
+def _smin(first: _FloatMap, second: _FloatMap, k: float) -> _FloatMap:
+    """Polynomial smooth minimum; infinite inputs behave like a plain min."""
+    with np.errstate(invalid="ignore"):
+        weight = np.clip((k - np.abs(first - second)) / k, 0, 1)
+    weight = np.nan_to_num(weight, nan=0.0)
+    return np.minimum(first, second) - weight * weight * k / 4
+
+
+@dataclass(frozen=True)
+class _Segment:
+    distance: _FloatMap
+    surface: _FloatMap
+    plane: _FloatMap
+
 
 def _ellipsoid(
-    front: _FloatMap,
     x: _FloatMap,
     y: _FloatMap,
     center: _Point,
     radii: _Point,
-    angle: float = 0,
-) -> None:
+    angle: float = 0.0,
+) -> _Segment:
+    """Ellipse silhouette with a spherical depth profile."""
     dx, dy = x - center[0], y - center[1]
     cosine, sine = math.cos(angle), math.sin(angle)
-    local_x = cosine * dx + sine * dy
-    local_y = -sine * dx + cosine * dy
-    squared_radius = (local_x / radii[0]) ** 2 + (local_y / radii[1]) ** 2
-    surface = center[2] - radii[2] * np.sqrt(
-        np.maximum(0, 1 - squared_radius)
+    local_x = (cosine * dx + sine * dy) / radii[0]
+    local_y = (-sine * dx + cosine * dy) / radii[1]
+    k0 = np.hypot(local_x, local_y)
+    k1 = np.hypot(local_x / radii[0], local_y / radii[1])
+    distance = np.where(
+        k1 > 1e-12,
+        k0 * (k0 - 1) / np.maximum(k1, 1e-12),
+        -min(radii[0], radii[1]),
     )
-    np.minimum(
-        front, np.where(squared_radius <= 1, surface, np.inf), out=front
-    )
+    plane = np.full_like(x, center[2])
+    surface = plane - radii[2] * np.sqrt(np.maximum(0, 1 - k0 * k0))
+    return _Segment(distance, surface, plane)
 
 
-def _tube(
-    front: _FloatMap,
+def _capsule(
     x: _FloatMap,
     y: _FloatMap,
     start: _Point,
     end: _Point,
     start_radius: float,
     end_radius: float,
-) -> None:
-    dx, dy = end[0] - start[0], end[1] - start[1]
-    length_squared = dx * dx + dy * dy
-    if length_squared == 0:
-        raise ValueError("A limb must have a nonzero projected length.")
-    position = np.clip(
-        ((x - start[0]) * dx + (y - start[1]) * dy) / length_squared,
-        0,
-        1,
+    thickness: float = 0.85,
+) -> _Segment:
+    """Tapered capsule with a cylindrical depth profile around its axis."""
+    axis_x, axis_y = end[0] - start[0], end[1] - start[1]
+    length = math.hypot(axis_x, axis_y)
+    if length <= abs(start_radius - end_radius):
+        raise ValueError("A limb must be longer than its radius difference.")
+    unit_x, unit_y = axis_x / length, axis_y / length
+    px, py = x - start[0], y - start[1]
+    along = px * unit_x + py * unit_y
+    across = np.abs(py * unit_x - px * unit_y)
+
+    slope = (start_radius - end_radius) / length
+    normal = math.sqrt(1 - slope * slope)
+    k = across * -slope + along * normal
+    distance = np.where(
+        k < 0,
+        np.hypot(across, along) - start_radius,
+        np.where(
+            k > normal * length,
+            np.hypot(across, along - length) - end_radius,
+            across * normal + along * slope - start_radius,
+        ),
     )
+
+    position = np.clip(along / length, 0, 1)
     radius = start_radius + (end_radius - start_radius) * position
-    squared_radius = (
-        (x - start[0] - position * dx) ** 2
-        + (y - start[1] - position * dy) ** 2
-    ) / radius**2
-    center_depth = start[2] + position * (end[2] - start[2])
-    surface = center_depth - 0.85 * radius * np.sqrt(
-        np.maximum(0, 1 - squared_radius)
+    axis_distance = np.hypot(across, along - position * length)
+    plane = start[2] + (end[2] - start[2]) * position
+    surface = plane - thickness * np.sqrt(
+        np.maximum(0, radius * radius - axis_distance * axis_distance)
     )
-    np.minimum(
-        front, np.where(squared_radius <= 1, surface, np.inf), out=front
-    )
+    return _Segment(distance, surface, plane)
+
+
+class _Body:
+    """Blends segment silhouettes with smin and keeps the nearest surface."""
+
+    def __init__(self, shape: tuple[int, int]) -> None:
+        self.distance = np.full(shape, np.inf)
+        self.front = np.full(shape, np.inf)
+        self._plane_sum = np.zeros(shape)
+        self._weight_sum = np.zeros(shape)
+
+    def add(self, segment: _Segment, blend: float = _BLEND) -> None:
+        self.distance = _smin(self.distance, segment.distance, blend)
+        surface = np.where(segment.distance <= 0, segment.surface, np.inf)
+        self.front = _smin(self.front, surface, _DEPTH_BLEND)
+        weight = np.exp(-np.maximum(segment.distance, 0) / _EDGE_FALLOFF)
+        self._plane_sum += weight * segment.plane
+        self._weight_sum += weight
+
+    def depth_surface(self) -> _FloatMap:
+        """Front surface; blended fillets take the weighted edge plane."""
+        inside = self.distance <= 0
+        fillet = self._plane_sum / np.maximum(self._weight_sum, 1e-12)
+        front = np.where(np.isfinite(self.front), self.front, fillet)
+        return np.where(inside, front, np.inf)
 
 
 def _extend(
@@ -84,164 +205,98 @@ def _extend(
     )
 
 
-def _torso(
-    front: _FloatMap, x: _FloatMap, y: _FloatMap, breathing: float
-) -> None:
-    levels = (-0.200, -0.170, -0.100, 0.050, 0.150, 0.320, 0.440, 0.510, 0.555)
-    widths = (0, 0.110, 0.170, 0.150, 0.145, 0.175, 0.207, 0.207, 0)
-    thicknesses = (0.010, 0.070, 0.115, 0.105, 0.100, 0.115, 0.110, 0.060, 0.010)
-    width = np.zeros_like(y)
-    thickness = np.zeros_like(y)
-    for index in range(len(levels) - 1):
-        position = np.clip(
-            (y - levels[index]) / (levels[index + 1] - levels[index]), 0, 1
-        )
-        blend = position**2 * (3 - 2 * position)
-        inside = (y >= levels[index]) & (y <= levels[index + 1])
-        width = np.where(
-            inside, widths[index] + blend * (widths[index + 1] - widths[index]), width
-        )
-        thickness = np.where(
-            inside,
-            thicknesses[index] + blend * (thicknesses[index + 1] - thicknesses[index]),
-            thickness,
-        )
-    width *= 1 + 0.007 * breathing * np.exp(-((y - 0.350) / 0.180) ** 2)
-    squared_radius = (x / np.maximum(width, 1e-9)) ** 2
-    surface = 0.010 - thickness * np.sqrt(np.maximum(0, 1 - squared_radius))
-    surface -= 0.004 * np.exp(
-        -((np.abs(x) - 0.080) / 0.055) ** 2 - ((y - 0.385) / 0.090) ** 2
-    )
-    visible = (width > 0) & (squared_radius <= 1)
-    np.minimum(front, np.where(visible, surface, np.inf), out=front)
-
-
-def _hand(
-    front: _FloatMap,
+def _arm(
+    body: _Body,
     x: _FloatMap,
     y: _FloatMap,
-    wrist: _Point,
-    direction: tuple[float, float],
+    pose: HumanPose,
     side: int,
+    torso_x: float,
 ) -> None:
-    lateral = (side * direction[1], -side * direction[0])
-    palm = _extend(wrist, direction, 0.050, -0.005)
-    angle = math.atan2(direction[1], direction[0]) - math.pi / 2
-    _ellipsoid(front, x, y, palm, (0.042, 0.060, 0.025), angle)
+    shoulder = (
+        torso_x + side * (SHOULDER_WIDTH / 2 - pose.shoulder_inset),
+        _SHOULDER_HEIGHT + pose.shoulder_lift,
+        -0.005,
+    )
+    upper_angle = math.radians(pose.upper_arm_angle)
+    forearm_angle = upper_angle + math.radians(pose.elbow_flex)
+    upper_direction = (side * math.sin(upper_angle), -math.cos(upper_angle))
+    forearm_direction = (side * math.sin(forearm_angle), -math.cos(forearm_angle))
+    lift = math.sin(math.pi * pose.raised)
+    elbow = _extend(shoulder, upper_direction, _UPPER_ARM_LENGTH, -0.030 * lift)
+    wrist = _extend(elbow, forearm_direction, _FOREARM_LENGTH, -0.015 * pose.raised)
 
-    fingers = (
-        (-0.032, 0.078, 0.0085, -7),
-        (-0.011, 0.088, 0.0090, -2),
-        (0.011, 0.082, 0.0080, 3),
-        (0.032, 0.063, 0.0065, 10),
-    )
-    for offset, length, radius, spread in fingers:
-        base = _extend(wrist, direction, 0.096, -0.004)
-        base = _extend(base, lateral, offset)
-        spread_angle = math.radians(spread)
-        finger_direction = (
-            direction[0] * math.cos(spread_angle)
-            + lateral[0] * math.sin(spread_angle),
-            direction[1] * math.cos(spread_angle)
-            + lateral[1] * math.sin(spread_angle),
-        )
-        joint = _extend(base, finger_direction, length * 0.55, -0.006)
-        tip = _extend(joint, finger_direction, length * 0.45, 0.004)
-        _tube(front, x, y, base, joint, radius, radius * 0.85)
-        _tube(front, x, y, joint, tip, radius * 0.85, radius * 0.65)
+    neck_base = (torso_x + side * 0.035, 0.565, 0.005)
+    trapezius_end = (shoulder[0] - side * 0.025, shoulder[1] + 0.025, 0.000)
+    girdle_start = (torso_x + side * 0.060, _SHOULDER_HEIGHT - 0.020, 0.000)
+    body.add(_capsule(x, y, neck_base, trapezius_end, 0.036, 0.032))
+    body.add(_capsule(x, y, girdle_start, shoulder, 0.060, 0.052))
+    body.add(_ellipsoid(x, y, shoulder, (0.058, 0.062, 0.062)))
+    body.add(_capsule(x, y, shoulder, elbow, 0.052, 0.039))
+    body.add(_capsule(x, y, elbow, wrist, 0.041, 0.027))
 
-    thumb_base = _extend(_extend(wrist, direction, 0.025), lateral, -0.031)
-    thumb_joint = _extend(
-        _extend(thumb_base, direction, 0.025, -0.009), lateral, -0.025
-    )
-    thumb_tip = _extend(
-        _extend(thumb_joint, direction, 0.028, 0.002), lateral, -0.014
-    )
-    _tube(front, x, y, thumb_base, thumb_joint, 0.012, 0.010)
-    _tube(front, x, y, thumb_joint, thumb_tip, 0.010, 0.008)
+    palm = _extend(wrist, forearm_direction, 0.085, -0.004)
+    angle = math.atan2(forearm_direction[1], forearm_direction[0]) - math.pi / 2
+    body.add(_ellipsoid(x, y, palm, (0.044, 0.092, 0.022), angle))
 
 
 def human_frame(frame_index: int) -> DepthFrame:
     """Model a frontal synthetic human, not a measured person or camera scan."""
-    if not 0 <= frame_index < FRAME_COUNT:
-        raise ValueError(f"Frame index must be between 0 and {FRAME_COUNT - 1}.")
-
-    phase = frame_index / FRAME_COUNT
-    raised = (1 - math.cos(math.tau * phase)) / 2
-    breathing = math.sin(math.tau * phase)
+    pose = human_pose(frame_index)
     x, y = np.meshgrid(
         (np.arange(WIDTH, dtype=np.float64) + 0.5) * _PIXEL_SIZE - _VIEW_WIDTH / 2,
         _VIEW_TOP - (np.arange(HEIGHT, dtype=np.float64) + 0.5) * _PIXEL_SIZE,
     )
-    x -= 0.006 * breathing
-    front = np.full((HEIGHT, WIDTH), np.inf, dtype=np.float64)
-    _torso(front, x, y, breathing)
+    body = _Body(x.shape)
+    hips_x = pose.sway
+    torso_x = 0.6 * pose.sway
+    head_x = 0.4 * pose.sway
 
-    body = (
-        ((0, 0.610, 0), (0.048, 0.077, 0.046)),
-        ((0, 0.765, 0), (0.089, 0.120, 0.087)),
-        ((0, 0.690, -0.003), (0.070, 0.055, 0.068)),
+    body.add(
+        _ellipsoid(
+            x,
+            y,
+            (torso_x, 0.310, 0.005),
+            (0.180 * pose.chest_scale, 0.220, 0.115 * pose.chest_scale),
+        )
     )
-    for center, radii in body:
-        _ellipsoid(front, x, y, center, radii)
-
-    # Eye sockets are recessed; other facial features join the visible surface.
-    face_region = (np.abs(x) < 0.074) & (y > 0.704) & (y < 0.830)
-    sockets = sum(
-        0.005
-        * np.exp(-((x - side * 0.034) / 0.019) ** 2 - ((y - 0.787) / 0.011) ** 2)
-        for side in (-1, 1)
+    body.add(
+        _ellipsoid(
+            x,
+            y,
+            (0.8 * torso_x + 0.2 * hips_x, 0.110, 0.005),
+            (WAIST_WIDTH / 2, 0.220, 0.098),
+        )
     )
-    front += np.where(face_region & np.isfinite(front), sockets, 0)
-    face_features = (
-        ((0, 0.772, -0.080), (0.012, 0.037, 0.019)),
-        ((0, 0.741, -0.095), (0.017, 0.015, 0.030)),
-        ((0, 0.709, -0.071), (0.027, 0.005, 0.018)),
-        ((0, 0.699, -0.068), (0.025, 0.006, 0.017)),
-        ((0, 0.675, -0.031), (0.042, 0.023, 0.049)),
+    body.add(_ellipsoid(x, y, (hips_x, -0.060, 0.008), (0.170, 0.165, 0.108)))
+    body.add(
+        _capsule(x, y, (torso_x, 0.500, 0.010), (head_x, 0.670, 0.000),
+                 NECK_WIDTH / 2, NECK_WIDTH / 2)
     )
-    for center, radii in face_features:
-        _ellipsoid(front, x, y, center, radii)
+    body.add(_ellipsoid(x, y, (head_x, 0.760, 0.0), HEAD_RADII))
+    body.add(_ellipsoid(x, y, (head_x, 0.738, -0.068), (0.013, 0.030, 0.026)))
 
     for side in (-1, 1):
-        _ellipsoid(
-            front, x, y, (side * 0.090, 0.765, 0.008), (0.020, 0.035, 0.023)
-        )
-        _ellipsoid(
-            front, x, y, (side * 0.049, 0.746, -0.042), (0.034, 0.031, 0.039)
-        )
-        _ellipsoid(
-            front, x, y, (side * 0.034, 0.812, -0.061), (0.026, 0.007, 0.015)
-        )
-        _ellipsoid(
-            front, x, y, (side * 0.013, 0.736, -0.089), (0.009, 0.010, 0.019)
-        )
-        hip = (side * 0.089, -0.140, 0.015)
-        knee = (side * 0.105, -0.470, -0.004)
-        ankle = (side * 0.116, -0.812, 0.012)
-        _tube(front, x, y, hip, knee, 0.081, 0.050)
-        _tube(front, x, y, knee, ankle, 0.054, 0.030)
-        _ellipsoid(
-            front, x, y, (side * 0.120, -0.871, -0.044), (0.049, 0.074, 0.105)
-        )
+        hip = (hips_x + side * 0.090, -0.135, 0.015)
+        knee = (side * 0.104, -0.470, -0.004)
+        ankle = (side * 0.114, -0.815, 0.012)
+        body.add(_capsule(x, y, hip, knee, 0.085, 0.052))
+        body.add(_capsule(x, y, knee, ankle, 0.056, 0.031))
+        body.add(_ellipsoid(x, y, (side * 0.120, -0.868, -0.015),
+                            (0.048, 0.068, 0.070)))
+        _arm(body, x, y, pose, side, torso_x)
 
-        upper_angle = math.radians(8 + 150 * raised)
-        forearm_angle = upper_angle + math.radians(
-            15 + 20 * math.sin(math.pi * raised)
+    front = body.depth_surface()
+    # Shallow eye sockets keep a hint of facial relief inside the head outline.
+    sockets = sum(
+        0.005
+        * np.exp(
+            -((x - head_x - side * 0.032) / 0.018) ** 2
+            - ((y - 0.785) / 0.011) ** 2
         )
-        upper_direction = (side * math.sin(upper_angle), -math.cos(upper_angle))
-        forearm_direction = (
-            side * math.sin(forearm_angle), -math.cos(forearm_angle)
-        )
-        shoulder = (side * 0.205, 0.490, -0.010)
-        elbow = _extend(
-            shoulder, upper_direction, 0.300, -0.030 * math.sin(math.pi * raised)
-        )
-        wrist = _extend(elbow, forearm_direction, 0.255, -0.015 * raised)
-        _ellipsoid(front, x, y, shoulder, (0.066, 0.073, 0.068))
-        _tube(front, x, y, shoulder, elbow, 0.051, 0.038)
-        _tube(front, x, y, elbow, wrist, 0.040, 0.026)
-        _hand(front, x, y, wrist, forearm_direction, side)
+        for side in (-1, 1)
+    )
+    front = front + np.where(np.isfinite(front), sockets, 0)
 
     view_bottom = _VIEW_TOP - HEIGHT * _PIXEL_SIZE
     background = 1300 + 15 * (y - view_bottom) / (HEIGHT * _PIXEL_SIZE)

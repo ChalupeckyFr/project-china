@@ -14,7 +14,7 @@ try {
     }
 
     Write-Host 'Načítám demo, může to trvat přibližně 15 s...'
-    & $python -m project_china.demo $csv --particles 360
+    & $python -m project_china.demo $csv --particles 360 --volume-particles 1500
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 finally {

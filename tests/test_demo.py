@@ -6,7 +6,7 @@ import pygame
 import pytest
 
 from project_china import demo
-from project_china.effects import StarEffect
+from project_china.effects import BodyTargets, StarEffect
 from project_china.frames import DepthFrame, DepthSequence, load_depth_csv
 from project_china.morph import MORPH_POINT_COUNT, transition_for_elapsed
 from project_china.selection import select_depth_regions
@@ -75,19 +75,30 @@ def test_main_reports_invalid_csv(tmp_path: Path, capsys: pytest.CaptureFixture[
 
 
 def test_main_passes_particle_count_to_demo(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[tuple[int, int]] = []
+    calls: list[tuple[int, int, int]] = []
     monkeypatch.setattr(
         demo,
         "run_demo",
-        lambda sequence, particle_count: calls.append(
-            (len(sequence.frames), particle_count)
+        lambda sequence, particle_count, volume_count: calls.append(
+            (len(sequence.frames), particle_count, volume_count)
         ),
     )
 
     demo.main([str(EXAMPLE_CSV), "--particles", "360"])
     demo.main([str(EXAMPLE_CSV)])
+    demo.main([str(EXAMPLE_CSV), "--volume-particles", "1500"])
 
-    assert calls == [(3, 360), (3, 72)]
+    assert calls == [(3, 360, 0), (3, 72, 0), (3, 72, 1500)]
+
+
+def test_main_rejects_negative_volume_particle_count(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit) as error:
+        demo.main([str(EXAMPLE_CSV), "--volume-particles", "-1"])
+
+    assert error.value.code == 2
+    assert "--volume-particles must not be negative" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("value", ("0", "-5"))
@@ -140,14 +151,12 @@ def test_more_stars_cover_the_human_outline_densely(
     selection = select_depth_regions(frame)
     surface = pygame.Surface((960, 720))
     effects = StarEffect((960, 720), particle_count)
-    targets: list[tuple[int, int]] = []
+    targets: list[tuple[float, float]] = []
     update = effects.update
 
-    def record_update(
-        delta_ms: int, contour_targets: tuple[tuple[float, float], ...]
-    ) -> None:
-        targets[:] = contour_targets
-        update(delta_ms, contour_targets)
+    def record_update(delta_ms: int, body: BodyTargets) -> None:
+        targets[:] = map(tuple, body.outline.tolist())
+        update(delta_ms, body)
 
     monkeypatch.setattr(effects, "update", record_update)
     for tick in range(240):
@@ -181,10 +190,8 @@ def test_render_frame_targets_contour_without_drawing_it(
     effects = StarEffect((320, 240))
     targets: list[tuple[float, float]] = []
 
-    def record_targets(
-        _delta_ms: int, contour_targets: tuple[tuple[float, float], ...]
-    ) -> None:
-        targets.extend(contour_targets)
+    def record_targets(_delta_ms: int, body: BodyTargets) -> None:
+        targets.extend(map(tuple, body.outline.tolist()))
 
     monkeypatch.setattr(effects, "update", record_targets)
     monkeypatch.setattr(effects, "draw", lambda _surface, _elapsed_ms: None)
@@ -331,8 +338,8 @@ def _record_demo_targets(
     monkeypatch.setattr(pygame.time, "Clock", lambda: ImmediateClock())
     recorded: list[np.ndarray] = []
 
-    def record_frame(*_args: object, targets: np.ndarray) -> None:
-        recorded.append(targets)
+    def record_frame(*_args: object, targets: BodyTargets) -> None:
+        recorded.append(targets.outline)
 
     monkeypatch.setattr(demo, "render_frame", record_frame)
     demo.run_demo(load_depth_csv(EXAMPLE_CSV))
