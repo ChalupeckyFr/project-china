@@ -100,10 +100,12 @@ spuštění zadat parametrem `--particles`. Při omezující
 execution policy použij např.
 `powershell -ExecutionPolicy Bypass -File .\runHuman.ps1`.
 
-Ukázkový objekt se posouvá každé 3 sekundy. Posloupnost se opakuje až do
-zavření okna; u jiných CSV demo zachovává jejich časové značky. Poslední
-snímek zobrazí stejně dlouho, jako trval odstup dvou posledních snímků.
-Pokud soubor obsahuje jediný snímek, zůstane zobrazený.
+Ukázkový objekt na každé pozici stojí 2,4 s a během dalších 600 ms plynule
+přepluje na novou, takže se posouvá každé 3 sekundy. Posloupnost se opakuje
+až do zavření okna; u jiných CSV demo zachovává jejich časové značky. Poslední
+snímek zobrazí stejně dlouho, jako trval odstup dvou posledních snímků, a pak
+plynule přejde zpět na první. Pokud soubor obsahuje jediný snímek, zůstane
+zobrazený.
 
 ### Detailní syntetický člověk
 
@@ -147,8 +149,8 @@ Generátor odmítne přepsat existující soubor. CSV má přibližně 296 MB;
 načítání potřebuje řádově gigabajty paměti a více času než původní příklad.
 Naměřené nároky jsou v [T-013](TASKS.md#t-013).
 Současný renderer využívá jen obrys; u člověka jej tvoří 360 hvězd
-(nejvýše asi 7 px mezi bodem obrysu a nejbližší hvězdou, viz
-[T-014](TASKS.md#t-014)). Jemný reliéf obličeje a jednotlivé prsty proto
+(nejvýše asi 5 px mezi bodem obrysu a nejbližší hvězdou, viz
+[T-015](TASKS.md#t-015)). Jemný reliéf obličeje a jednotlivé prsty proto
 nemusí být v hvězdném zobrazení rozpoznatelné.
 
 Příklad je vymyšlený testovací vstup, ne záznam z kamery. Demo žádná zpracovaná
@@ -156,9 +158,25 @@ hloubková data neukládá. Volba pevného vzorku nebo souborů přes uživatels
 rozhraní zůstává otevřená v Q-004. Okno lze zavřít klávesou `Esc` nebo `q`.
 
 Hvězdné pozadí plynule pohasíná a při výskytu obrysu
-k němu přitahuje částice rovnoměrně rozložené po obvodu, vzorkovaném
-nejvýše po 6 px (výchozí počet 72, u člověka 360); po jeho zmizení se
-částice postupně uvolní.
+k němu přitahuje částice rovnoměrně rozložené po obvodu (výchozí počet 72,
+u člověka 360); po jeho zmizení se částice postupně uvolní.
+
+Obrys se mezi snímky CSV plynule morfuje (modul `project_china.morph`):
+
+- Každá kontura se převzorkuje na 1 024 bodů ve směru hodinových ručiček.
+  Index 0 leží na nejvyšším bodě nad těžištěm a body vpravo, dole a vlevo
+  od těžiště připadnou na indexy 256, 512 a 768. Změna jedné končetiny tak
+  neposune body v ostatních kvadrantech. Když kvadranty nejsou spolehlivé
+  (těžiště mimo tvar), obrys se převzorkuje rovnoměrně od horního bodu.
+- Cíl je `lerp(předchozí, další, smoothstep(alpha))`. Přechod trvá délku
+  snímku, nejvýše však 600 ms, a končí přesně v čase dalšího snímku.
+- Kontury se párují podle nejbližšího těžiště. Nová kontura vyrůstá ze
+  svého těžiště, mizející se do něj stáhne.
+- Cílové body se na obrazovce posouvají nejvýše o 900 px/s.
+- Hloubka se mezi snímky neinterpoluje; tvar každého snímku vychází z jeho
+  vlastního prahování.
+
+Obrysy klíčových snímků se počítají jen jednou a ukládají se do mezipaměti.
 Obrys postavy či objektu se nevykresluje čarou, jeho tvar naznačují hvězdy.
 Samostatné kolečko uprostřed cíle se nevykresluje.
 Samostatná prolétající hvězda v pozadí se nevykresluje.

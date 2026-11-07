@@ -1,18 +1,24 @@
 import math
 from pathlib import Path
 
+import numpy as np
 import pygame
 import pytest
 
 from project_china import demo
 from project_china.effects import StarEffect
 from project_china.frames import DepthFrame, DepthSequence, load_depth_csv
+from project_china.morph import MORPH_POINT_COUNT, transition_for_elapsed
 from project_china.selection import select_depth_regions
 from project_china.synthetic_human import human_frame
 
 EXAMPLE_CSV = (
     Path(__file__).resolve().parents[1] / "examples" / "moving_object.csv"
 )
+
+
+def _frame_index(offsets: tuple[float, ...], elapsed_ms: float) -> int:
+    return transition_for_elapsed(offsets, elapsed_ms)[0]
 
 
 def test_example_frames_loop_every_three_seconds() -> None:
@@ -31,38 +37,30 @@ def test_example_frames_loop_every_three_seconds() -> None:
         (12000, 1),
         (18000, 0),
     ):
-        assert demo._frame_index_for_elapsed(offsets, elapsed_ms) == expected_index
+        assert _frame_index(offsets, elapsed_ms) == expected_index
 
 
 def test_frame_index_preserves_uneven_and_fractional_intervals() -> None:
     offsets = (0.0, 1000.0, 3500.0)
-    assert demo._frame_index_for_elapsed(offsets, -1) == 0
-    assert demo._frame_index_for_elapsed(offsets, 3499) == 1
-    assert demo._frame_index_for_elapsed(offsets, 3500) == 2
-    assert demo._frame_index_for_elapsed(offsets, 5999) == 2
-    assert demo._frame_index_for_elapsed(offsets, 6000) == 0
-    assert demo._frame_index_for_elapsed(offsets, 7000) == 1
+    assert _frame_index(offsets, -1) == 0
+    assert _frame_index(offsets, 3499) == 1
+    assert _frame_index(offsets, 3500) == 2
+    assert _frame_index(offsets, 5999) == 2
+    assert _frame_index(offsets, 6000) == 0
+    assert _frame_index(offsets, 7000) == 1
 
     fractional_offsets = (0.0, 250.5, 751.5)
-    assert demo._frame_index_for_elapsed(fractional_offsets, 1252.49) == 2
-    assert demo._frame_index_for_elapsed(fractional_offsets, 1252.5) == 0
+    assert _frame_index(fractional_offsets, 1252.49) == 2
+    assert _frame_index(fractional_offsets, 1252.5) == 0
 
 
 def test_frame_index_holds_a_single_frame() -> None:
-    assert demo._frame_index_for_elapsed((0.0,), 100_000) == 0
+    assert transition_for_elapsed((0.0,), 100_000) == (0, 0, 0.0)
 
 
 def test_frame_index_rejects_an_invalid_final_interval() -> None:
     with pytest.raises(ValueError, match="Frame offsets must increase strictly"):
-        demo._frame_index_for_elapsed((0.0, 0.0), 0)
-
-
-def test_sample_contour_interpolates_between_vertices() -> None:
-    sampled = demo._sample_contour(((0, 0), (24, 0), (24, 24), (0, 24)))
-
-    assert len(sampled) > 4
-    assert (6, 0) in sampled
-    assert (24, 6) in sampled
+        transition_for_elapsed((0.0, 0.0), 0)
 
 
 def test_main_reports_invalid_csv(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -119,6 +117,7 @@ def test_run_demo_uses_requested_particle_count(
         effects: StarEffect,
         _elapsed_ms: int,
         _delta_ms: int,
+        **_kwargs: object,
     ) -> None:
         counts.append(len(effects.particle_positions))
 
@@ -145,7 +144,7 @@ def test_more_stars_cover_the_human_outline_densely(
     update = effects.update
 
     def record_update(
-        delta_ms: int, contour_targets: tuple[tuple[int, int], ...]
+        delta_ms: int, contour_targets: tuple[tuple[float, float], ...]
     ) -> None:
         targets[:] = contour_targets
         update(delta_ms, contour_targets)
@@ -180,10 +179,10 @@ def test_render_frame_targets_contour_without_drawing_it(
     selection = select_depth_regions(frame)
     surface = pygame.Surface((320, 240))
     effects = StarEffect((320, 240))
-    targets: list[tuple[int, int]] = []
+    targets: list[tuple[float, float]] = []
 
     def record_targets(
-        _delta_ms: int, contour_targets: tuple[tuple[int, int], ...]
+        _delta_ms: int, contour_targets: tuple[tuple[float, float], ...]
     ) -> None:
         targets.extend(contour_targets)
 
@@ -192,7 +191,7 @@ def test_render_frame_targets_contour_without_drawing_it(
 
     demo.render_frame(surface, frame, selection, effects, 0, 0)
 
-    assert edge_point in targets
+    assert min(math.dist(edge_point, target) for target in targets) < 0.5
     assert (pygame.surfarray.array3d(surface) == demo._BACKGROUND).all()
 
 
@@ -205,7 +204,12 @@ def test_render_frame_shows_target_with_particle_stars() -> None:
     for tick in range(160):
         demo.render_frame(surface, frame, selection, effects, tick * 16, 16)
 
-    outline = demo._sample_contour(((112, 72), (112, 168), (208, 168), (208, 72)))
+    corners = ((112, 72), (208, 72), (208, 168), (112, 168))
+    outline = [
+        (x0 + (x1 - x0) * step / 16, y0 + (y1 - y0) * step / 16)
+        for (x0, y0), (x1, y1) in zip(corners, corners[1:] + corners[:1], strict=True)
+        for step in range(16)
+    ]
     near_outline = [
         position
         for position in effects.particle_positions
@@ -246,8 +250,11 @@ def test_run_demo_renders_then_closes_on_user_request(
         effects: StarEffect,
         elapsed_ms: int,
         delta_ms: int,
+        targets: object = None,
     ) -> None:
-        render_frame(surface, frame, selection, effects, elapsed_ms, delta_ms)
+        render_frame(
+            surface, frame, selection, effects, elapsed_ms, delta_ms, targets=targets
+        )
         rendered_frames.append(frame.frame)
 
     monkeypatch.setattr(demo, "render_frame", record_frame)
@@ -293,6 +300,7 @@ def test_run_demo_loops_until_quit_without_resetting_animation_time(
         _effects: StarEffect,
         elapsed_ms: int,
         _delta_ms: int,
+        **_kwargs: object,
     ) -> None:
         rendered.append((frame.frame, elapsed_ms))
 
@@ -302,3 +310,51 @@ def test_run_demo_loops_until_quit_without_resetting_animation_time(
 
     assert [frame for frame, _ in rendered] == [0, 0, 1, 1, 2, 2, 0, 1, 0]
     assert [elapsed for _, elapsed in rendered] == list(elapsed_values)
+
+
+def _record_demo_targets(
+    monkeypatch: pytest.MonkeyPatch, elapsed_values: tuple[int, ...]
+) -> list[np.ndarray]:
+    monkeypatch.setenv("SDL_VIDEODRIVER", "dummy")
+    monkeypatch.setenv("SDL_AUDIODRIVER", "dummy")
+    ticks = iter([0, *elapsed_values])
+    events = iter(
+        [[] for _ in elapsed_values] + [[pygame.event.Event(pygame.QUIT)]]
+    )
+    monkeypatch.setattr(pygame.time, "get_ticks", lambda: next(ticks))
+    monkeypatch.setattr(pygame.event, "get", lambda: next(events))
+
+    class ImmediateClock:
+        def tick(self, _fps: int) -> None:
+            pass
+
+    monkeypatch.setattr(pygame.time, "Clock", lambda: ImmediateClock())
+    recorded: list[np.ndarray] = []
+
+    def record_frame(*_args: object, targets: np.ndarray) -> None:
+        recorded.append(targets)
+
+    monkeypatch.setattr(demo, "render_frame", record_frame)
+    demo.run_demo(load_depth_csv(EXAMPLE_CSV))
+    return recorded
+
+
+def test_run_demo_holds_then_morphs_between_keyframes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    held, still_held, halfway, arrived = _record_demo_targets(
+        monkeypatch, (0, 2400, 2700, 3000)
+    )
+
+    assert held.shape == (MORPH_POINT_COUNT, 2)
+    np.testing.assert_allclose(still_held, held)
+    np.testing.assert_allclose(halfway, (held + arrived) / 2)
+    assert np.hypot(*(arrived - held).T).max() > 100
+
+
+def test_run_demo_limits_target_speed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(demo, "MAX_TARGET_SPEED", 100.0)
+
+    held, limited = _record_demo_targets(monkeypatch, (2400, 3000))
+
+    assert np.hypot(*(limited - held).T).max() == pytest.approx(60.0)

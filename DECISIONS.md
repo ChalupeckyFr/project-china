@@ -242,7 +242,7 @@ stav `navrh` nebo `ke-schvaleni`.
 - Důvod: Přímá odpověď člověka: „3 pro skoky a loopni to, aby to běželo dokud to nevypnu“.
 - Důsledky: Ukázkový soubor má kroky po 3 sekundách; ostatní CSV zachovávají své časové značky podle [DEC-003](DECISIONS.md#dec-003). Pro dobu posledního snímku agent použil odstup posledních dvou snímků; jediný snímek zůstává zobrazený. Požadavek nepředstavuje produktovou akceptaci nové revize.
 - Stav: prijato
-- Nahrazuje / Nahrazeno: –
+- Nahrazuje / Nahrazeno: – / Částečně [DEC-016](DECISIONS.md#dec-016), pouze v okamžitém skoku mezi pozicemi.
 - Schválení:
   - Rozsah: Třísekundový odstup ukázkových snímků a opakování až do uživatelského ukončení.
   - Revize: Pracovní kopie nad HEAD `553cc19` včetně předchozí úpravy T-009; SHA-256 `src/project_china/demo.py`: `5634ABABF3A83D0B9DB57A6C765F313D50ACDC6744ECA2E4F36D0633D078B9F4`; `examples/moving_object.csv`: `5D0356DF8E18D263B49B23C007ED3A72046DD4308FCA9AFED130DB64874BDE72`.
@@ -318,6 +318,24 @@ stav `navrh` nebo `ke-schvaleni`.
 - Schválení:
   - Rozsah: Více hvězd tvořících obrys člověka; konkrétní počet je volbou agenta.
   - Revize: Výslovný požadavek nad HEAD `3b766b5`; SHA-256 `src/project_china/effects.py`: `4DDC53F8E4D9BDC8A9932F33EAEE07D22E1A861A3907CC286E61A24CA6DC2F80`, `src/project_china/demo.py`: `96CE8A0DD62EF2AA0E3831DCD14CB9EE35801B7ACB542F6E301FFF11B1FDB311`, `runHuman.ps1`: `8200B3F1835B714A31D3E54AE2D8A94FC4812EF282F04E56277BCD9214381910`.
+  - Schválil: člověk
+  - Datum: 2026-11-07
+  - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize.
+
+## DEC-016
+
+- Předmět: Plynulé morfování obrysu mezi snímky CSV
+- Typ: schvaleni-rozsahu
+- Kontext: Při přechodu mezi snímky se tvar obrysu měnil skokově a hvězdy ztrácely přiřazení k bodům obrysu, protože se počet a pořadí cílů měnily. Člověk zadal tři části řešení: interpolaci hloubky před prahováním, převzorkování a ukotvení obrysu s `smoothstep` interpolací a omezení rychlosti s vysouváním nových částí.
+- Varianty: (A) jen morfování obrysu bez interpolace hloubky; (B) i interpolace hloubky před prahováním, která zužuje tvar na průnik snímků, takže objekt by uprostřed přechodu zmizel a prsty by blikaly. Časování: přechod přes celou délku snímku, nebo nejvýše 600 ms.
+- Výsledek: Člověk zvolil variantu A („contour“) a přechod nejvýše 600 ms („capped“). Agent zvolil 1 024 bodů na konturu, pevné čtvrtiny bodů pro kvadranty, párování podle nejbližšího těžiště a strop rychlosti cílů 900 px/s.
+- Důvod: Přímé volby člověka v rozhovoru. Pevné čtvrtiny drží indexy nezměněných kvadrantů a dávají každému snímku jednoznačnou reprezentaci, takže přechody na sebe navazují. Strop 900 px/s leží nad naměřeným běžným pohybem (555 a 840 px/s) a omezuje jen skutečné skoky.
+- Důsledky: Ukázkový objekt nadále mění pozici každé 3 s podle [DEC-011](DECISIONS.md#dec-011), ale místo skoku 2,4 s stojí a 600 ms plynule pluje. Snímky kratší než 600 ms, například člověk po 50 ms, se interpolují přes celou délku. Hustota bodů se mezi kvadranty liší podle jejich délky. Změna počtu kontur přeskupí přiřazení hvězd; ty k novým cílům doletí plynule.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: Částečně [DEC-011](DECISIONS.md#dec-011), pouze v okamžitém skoku mezi pozicemi / –.
+- Schválení:
+  - Rozsah: Morfování obrysu bez interpolace hloubky, přechod nejvýše 600 ms; číselné parametry jsou volbou agenta.
+  - Revize: Pracovní kopie nad HEAD `88207f6`; SHA-256 `src/project_china/morph.py`: `FA0D76DAEFA6370B61D1C03E4B3B755A4C0DACF44885A5E262ED67F5BE6EAF16`, `src/project_china/demo.py`: `5EEE66BC7F5C479E8107634C1828542DDBA21E2BCA2269BD4FF784F7693B000A`, `src/project_china/effects.py`: `A5B941408020BD522008BBA94B5928E91598EF9C6E25CFB962FC5AE0CB1A90D6`.
   - Schválil: člověk
   - Datum: 2026-11-07
   - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize.

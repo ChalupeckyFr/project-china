@@ -1,9 +1,9 @@
 import argparse
-import bisect
-import math
 from pathlib import Path
 
+import numpy as np
 import pygame
+from numpy.typing import NDArray
 
 from project_china.effects import PARTICLE_COUNT, StarEffect
 from project_china.frames import (
@@ -12,52 +12,51 @@ from project_china.frames import (
     DepthSequence,
     load_depth_csv,
 )
+from project_china.morph import (
+    ContourShape,
+    limit_speed,
+    match_contours,
+    morph_contours,
+    prepare_contours,
+    transition_for_elapsed,
+)
 from project_china.selection import DepthSelection, select_depth_regions
 
 _SCREEN_SIZE = (960, 720)
 _BACKGROUND = (5, 8, 24)
-_CONTOUR_SAMPLE_SPACING = 6
+_GRID_MARGIN = 24
+MAX_TARGET_SPEED = 900.0
 
 
-def _sample_contour(
-    points: tuple[tuple[int, int], ...]
-) -> tuple[tuple[int, int], ...]:
-    if len(points) < 2:
-        return points
+def _grid_transform(
+    surface_size: tuple[int, int], grid_size: tuple[int, int]
+) -> tuple[float, float, float]:
+    surface_width, surface_height = surface_size
+    grid_width, grid_height = grid_size
+    scale = min(
+        (surface_width - 2 * _GRID_MARGIN) / grid_width,
+        (surface_height - 2 * _GRID_MARGIN) / grid_height,
+    )
+    left = (surface_width - grid_width * scale) / 2
+    top = (surface_height - grid_height * scale) / 2
+    return scale, left, top
 
-    sampled: list[tuple[int, int]] = []
-    following_points = points[1:] + points[:1]
-    for (x0, y0), (x1, y1) in zip(points, following_points, strict=True):
-        steps = max(
-            1,
-            math.ceil(
-                math.hypot(x1 - x0, y1 - y0) / _CONTOUR_SAMPLE_SPACING
-            ),
+
+def _frame_grid_size(frame: DepthFrame) -> tuple[int, int]:
+    return len(frame.depths[0]), len(frame.depths)
+
+
+def _to_screen(
+    grid_points: NDArray[np.float64],
+    transform: tuple[float, float, float],
+) -> NDArray[np.float64]:
+    scale, left, top = transform
+    return np.column_stack(
+        (
+            left + (grid_points[:, 0] + 0.5) * scale,
+            top + (grid_points[:, 1] + 0.5) * scale,
         )
-        for step in range(steps):
-            ratio = step / steps
-            sampled.append(
-                (
-                    round(x0 + (x1 - x0) * ratio),
-                    round(y0 + (y1 - y0) * ratio),
-                )
-            )
-    return tuple(sampled)
-
-
-def _frame_index_for_elapsed(
-    frame_offsets: tuple[float, ...], elapsed_ms: float
-) -> int:
-    elapsed_ms = max(0.0, elapsed_ms)
-    if len(frame_offsets) > 1:
-        last_frame_duration = frame_offsets[-1] - frame_offsets[-2]
-        if last_frame_duration <= 0:
-            raise ValueError("Frame offsets must increase strictly.")
-        cycle_duration = frame_offsets[-1] + last_frame_duration
-        elapsed_ms %= cycle_duration
-
-    index = bisect.bisect_right(frame_offsets, elapsed_ms) - 1
-    return min(max(index, 0), len(frame_offsets) - 1)
+    ) if len(grid_points) else np.empty((0, 2))
 
 
 def render_frame(
@@ -67,37 +66,37 @@ def render_frame(
     effects: StarEffect,
     elapsed_ms: int,
     delta_ms: int,
+    targets: NDArray[np.float64] | None = None,
 ) -> None:
+    """Draw one demo frame.
+
+    ``targets`` are screen points of an already morphed outline; without
+    them the outline of ``selection`` is resampled directly.
+    """
     surface.fill(_BACKGROUND)
 
-    grid_height = len(frame.depths)
-    grid_width = len(frame.depths[0])
-    margin = 24
-    scale = min(
-        (surface.get_width() - 2 * margin) / grid_width,
-        (surface.get_height() - 2 * margin) / grid_height,
-    )
-    left = (surface.get_width() - grid_width * scale) / 2
-    top = (surface.get_height() - grid_height * scale) / 2
-    contour_points: list[tuple[tuple[int, int], ...]] = []
+    if targets is None:
+        shapes = prepare_contours(selection.contours)
+        grid_points = morph_contours(tuple((shape, shape) for shape in shapes), 0)
+        transform = _grid_transform(surface.get_size(), _frame_grid_size(frame))
+        targets = _to_screen(grid_points, transform)
 
-    for contour in selection.contours:
-        points = tuple(
-            (
-                round(left + (int(x) + 0.5) * scale),
-                round(top + (int(y) + 0.5) * scale),
-            )
-            for x, y in contour.reshape(-1, 2)
-        )
-        contour_points.append(points)
-
-    targets = tuple(
-        point
-        for points in contour_points
-        for point in _sample_contour(points)
-    )
-    effects.update(delta_ms, targets)
+    effects.update(delta_ms, tuple(map(tuple, targets.tolist())))
     effects.draw(surface, elapsed_ms)
+
+
+class _KeyframeCache:
+    def __init__(self, sequence: DepthSequence) -> None:
+        self._frames = sequence.frames
+        self._entries: dict[int, tuple[DepthSelection, tuple[ContourShape, ...]]] = {}
+
+    def get(self, index: int) -> tuple[DepthSelection, tuple[ContourShape, ...]]:
+        entry = self._entries.get(index)
+        if entry is None:
+            selection = select_depth_regions(self._frames[index])
+            entry = (selection, prepare_contours(selection.contours))
+            self._entries[index] = entry
+        return entry
 
 
 def run_demo(
@@ -110,9 +109,8 @@ def run_demo(
 
     first_time = sequence.frames[0].time_ms
     frame_offsets = tuple(frame.time_ms - first_time for frame in sequence.frames)
-    current_index = 0
-    current_frame = sequence.frames[current_index]
-    selection = select_depth_regions(current_frame)
+    keyframes = _KeyframeCache(sequence)
+    previous_targets: NDArray[np.float64] | None = None
 
     pygame.init()
     try:
@@ -138,14 +136,32 @@ def run_demo(
             elapsed_ms = current_tick - started_at
             delta_ms = current_tick - previous_tick
             previous_tick = current_tick
-            frame_index = _frame_index_for_elapsed(frame_offsets, elapsed_ms)
-            if frame_index != current_index:
-                current_index = frame_index
-                current_frame = sequence.frames[current_index]
-                selection = select_depth_regions(current_frame)
+            current_index, next_index, alpha = transition_for_elapsed(
+                frame_offsets, elapsed_ms
+            )
+            current_frame = sequence.frames[current_index]
+            selection, current_shapes = keyframes.get(current_index)
+            _, next_shapes = keyframes.get(next_index)
+            grid_points = morph_contours(
+                match_contours(current_shapes, next_shapes), alpha
+            )
+            targets = _to_screen(
+                grid_points,
+                _grid_transform(screen.get_size(), _frame_grid_size(current_frame)),
+            )
+            targets = limit_speed(
+                previous_targets, targets, MAX_TARGET_SPEED * delta_ms / 1000
+            )
+            previous_targets = targets
 
             render_frame(
-                screen, current_frame, selection, effects, elapsed_ms, delta_ms
+                screen,
+                current_frame,
+                selection,
+                effects,
+                elapsed_ms,
+                delta_ms,
+                targets=targets,
             )
             pygame.display.flip()
             clock.tick(60)

@@ -59,7 +59,7 @@ class StarEffect:
             )
             for _ in range(particle_count)
         ]
-        self._last_targets: tuple[tuple[int, int], ...] = ()
+        self._last_targets: tuple[tuple[float, float], ...] = ()
         self._attraction_strength = 0.0
 
     @property
@@ -71,7 +71,7 @@ class StarEffect:
         return tuple((particle.x, particle.y) for particle in self._particles)
 
     def update(
-        self, delta_ms: int, targets: tuple[tuple[int, int], ...]
+        self, delta_ms: int, targets: tuple[tuple[float, float], ...]
     ) -> None:
         if delta_ms < 0:
             raise ValueError("Elapsed time must not be negative.")

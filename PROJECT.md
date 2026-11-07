@@ -8,7 +8,7 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 - Fáze: `akceptace-prirustku`
 - Od: 2026-11-06
-- Poslední změna fáze: hustší hvězdný obrys člověka T-014 je technicky ověřen
+- Poslední změna fáze: plynulé morfování obrysu T-015 je technicky ověřeno
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-Člověk může spustit `runHuman.ps1` a posoudit hustotu hvězd na obrysu postavy.
+Člověk může spustit `runHuman.ps1` a `runObject.ps1` a posoudit plynulost přechodů obrysu.
 
 ## Bod pokračování
 
 - Aktivní úkol: žádný
-- Poslední dokončená činnost: zvýšení počtu hvězd na obrysu člověka podle T-014
-- Neověřené změny ve worktree: lidské posouzení nového vzhledu; skutečná kamera a produkční zařízení nebyly ověřeny
-- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-014
+- Poslední dokončená činnost: plynulé morfování obrysu mezi snímky podle T-015
+- Neověřené změny ve worktree: necommitnutá T-015; lidské posouzení nového vzhledu; skutečná kamera a produkční zařízení nebyly ověřeny
+- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-015
 
 ## Otevřené otázky
 
