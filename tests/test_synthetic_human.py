@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 import pytest
 
+from project_china.demo import _SCREEN_SIZE, _grid_transform
 from project_china.frames import load_depth_csv
 from project_china.selection import select_depth_regions
 from project_china.synthetic_human import (
@@ -15,12 +16,14 @@ from project_china.synthetic_human import (
     BREATH_PERIOD_FRAMES,
     CHEST_LIFT,
     FOREARM_PHASE_LAG,
+    FOREARM_RADII,
     FRAME_COUNT,
     FRAME_INTERVAL_MS,
     HEAD_WIDTH,
     HEIGHT,
     SHOULDER_WIDTH,
     TORSO_HEIGHT,
+    UPPER_ARM_RADII,
     WIDTH,
     _arm_joints,
     _capsule,
@@ -158,7 +161,8 @@ def test_limbs_taper_towards_wrists_and_ankles() -> None:
     for side in (-1, 1):
         near_shoulder = np.count_nonzero(horizontal[:, _column(side * 0.33)])
         near_wrist = np.count_nonzero(horizontal[:, _column(side * 0.70)])
-        assert near_shoulder > 1.3 * near_wrist
+        # T-022 keeps the wrist at least 10 screen px thick, so the taper is milder.
+        assert near_shoulder > 1.25 * near_wrist
 
 
 def test_depth_falls_off_smoothly_from_segment_centres() -> None:
@@ -320,3 +324,12 @@ def test_empty_sequence_is_rejected_without_creating_a_file(tmp_path: Path) -> N
     with pytest.raises(ValueError, match="empty human sequence"):
         write_human_csv(path, ())
     assert not path.exists()
+
+
+def test_arms_are_thick_enough_on_screen_to_keep_their_volume() -> None:
+    scale = _grid_transform(_SCREEN_SIZE, (WIDTH, HEIGHT))[0]
+    screen_pixel = _PIXEL_SIZE / scale
+    forearm, wrist = (radius / screen_pixel for radius in FOREARM_RADII)
+    assert 14 <= forearm <= 18
+    assert 10 <= wrist <= 12
+    assert UPPER_ARM_RADII[0] >= UPPER_ARM_RADII[1] >= FOREARM_RADII[0] > FOREARM_RADII[1]

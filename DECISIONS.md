@@ -443,3 +443,63 @@ stav `navrh` nebo `ke-schvaleni`.
   - Schválil: člověk
   - Datum: 2026-11-07
   - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize.
+
+## DEC-023
+
+- Předmět: Plné paže, časově stabilní stínování, rovnoměrná hustota a omezení zrychlení částic
+- Typ: schvaleni-rozsahu
+- Kontext: Po [DEC-022](#dec-022) člověk zadal čtyři opravy:
+  1. Paže: předloktí min. 14–18 px a zápěstí min. 10–12 px, vzorkování kolmo na osu kosti, rozptyl kolmo na kost ±2,0–3,5 px.
+  2. Blikání: filtr `val = prev · 0,8 + target · 0,2` na poloměr a alfu, stálé souřadnice vnitřních částic trupu vůči tělu.
+  3. Hustota: pokles k okrajům max. 25–30 %, hloubka jen jasem (střed 0,95, boky 0,35) a velikostí (3,5 / 1,5 px).
+  4. Úvratě: tlumení 0,92–0,95 nebo omezení zrychlení.
+- Varianty:
+  - px jako body matice, nebo jako pixely obrazovky;
+  - kotva trupu: těžiště a rozptyl jádra (2D UV), nebo jen vodorovné těžiště;
+  - blízkost: normovaná po snímcích, nebo pevným rozsahem sekvence;
+  - rozptyl napříč kostí: náhodný každý snímek, nebo stálý pro částici;
+  - úvratě: pružina s tlumením, nebo omezení zrychlení;
+  - nové okrajové cíle: nejbližší volná částice kdekoli, nebo jen do poloměru a jinak respawn neviditelné částice z poolu.
+- Výsledek: Agent zvolil:
+  - Poloměry „px“ jsou pixely obrazovky dema (1 px ≈ 4,24 mm). Nadloktí 0,072/0,064 m, předloktí 0,062/0,044 m (14,6 / 10,4 px), dlaň 0,050 × 0,096 m, předsun dlaně 0,070 m.
+  - Mřížka výplně se posouvá jen vodorovně o vážené těžiště jádra (váha `max(vnitřní vzdálenost − 0,5 · max, 0)`), ID zůstávají.
+  - Osa kosti: strukturní tenzor gradientu znaménkové vzdálenosti (Gauss σ = 3).
+  - Váha končetiny: `1 − smoothstep` lokální poloviční šířky mezi 12 a 16 body.
+  - Prostor k okraji: −znaménková vzdálenost × měřítko.
+  - Blízkost: pevný rozsah hloubek siluet celé sekvence, oříznutý na 0..1.
+  - Blízkost, poloměr i alfa: filtr 0,8/0,2 za referenční tik 60 Hz (`1 − 0,8^tiky`).
+  - Pásma: 1,5 / 2,4 / 3,5 px, alfa 0,35 / 0,55 / 0,95; mrkání objemu 5 % (obrysu 15 %).
+  - Stálý rozptyl napříč kostí: `u ∈ [−1, 1] · 3 px · váha končetiny`, oříznutý na prostor − 1 px.
+  - Pohyb: chtěná rychlost 25 % zbývající vzdálenosti, nejvýše 10 px za tik; změna rychlosti nejvýše 2 px za tik; krok nikdy nepřesáhne zbývající vzdálenost.
+  - Párování: uvolněná částice bere volný cíl jen do 12 px. Zbylé nové cíle převezmou částice s přítomností < 0,05, které se přesunou přímo na cíl s jeho stínováním a rozsvítí se. Dálkové párování jen bez neviditelných částic (start).
+- Důvod:
+  - Zadané poloměry odpovídají tomu, co uživatel vidí na obrazovce.
+  - Svislý střed a rozptyl jádra skákaly o 2,8 bodu za snímek, když se visící paže v podpaží slévaly s trupem. 2D UV kotva by tak vnášela přeskakování, proti kterému je zadání. Vodorovné těžiště se mění plynule (krok ≤ 0,23 bodu) a sleduje přenos váhy.
+  - Blikání způsobovala hlavně normalizace min/max po snímcích a přímé převzetí blízkosti. Simulace pak ukázala druhou příčinu: přelety částic na vzdálené okrajové cíle přes hrudník. Respawn v poolu je odstraňuje bez alokací.
+  - Stálý rozptyl nemění rozložení mezi snímky, takže nevytváří nový šum.
+  - Omezení zrychlení s ořezem kroku vylučuje překmit konstrukcí, nezávisle na volbě tlumení.
+  - Pevná mřížka má rovnoměrnou hustotu; pokles u okraje je dán jen ořezem siluety (měřeno ≥ 0,7).
+- Důsledky:
+  - Silueta paží je širší (plocha masky asi 11 300 místo 10 400 bodů).
+  - Zužování paže je mírnější (18 : 14 bodů).
+  - Dlaně mají blízkost ≥ 0,83, hrudník ≥ 0,92.
+  - Hvězda za paží nabírá rychlost nejvýše 2 px za tik², takže za rychlým pohybem zaostává o něco víc.
+  - Vykreslení snímku zrychlilo na medián 3,5 ms.
+  - CSV má 608 238 502 B.
+  - Nativní okno nebylo ověřeno.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: Částečně [DEC-022](#dec-022) (pásma stínování, normalizace hloubky, předsun dlaní) a [DEC-021](#dec-021) (nehybná mřížka výplně, párování na nejbližší volný cíl bez omezení) / –.
+- Schválení:
+  - Rozsah: Úprava generátoru, výplně a rendereru podle zadání člověka. Výklad px jako pixelů obrazovky, vodorovná kotva, respawn v poolu a konkrétní parametry jsou volbou agenta v mezích zadání.
+  - Revize: Pracovní kopie nad HEAD `492c9f8` (včetně necommitnutých T-020 a T-021). SHA-256:
+    - `src/project_china/synthetic_human.py`: `CE3562E13B35306702B5F8BE41AF88AA42D07E05B3F943C57D5CDD8E3196E8E3`
+    - `src/project_china/effects.py`: `4ACDFA5421D1D5FFEBC0D21423A95C80F8C65DAD068580C3D685150F883A1383`
+    - `src/project_china/volume.py`: `EFC9F7C8E1CA6AE60F17838852C28117B40F17D188EE1C938CC0075FF6F0AD36`
+    - `src/project_china/demo.py`: `6C6CF4846E8FA1777FFB936C39D2197A49BFAD6D9514FCC0D16FE2F715BDFDD7`
+    - `tests/test_synthetic_human.py`: `ED477276910DF66B2CDDE93DA8D9207C15729CE10E12835852C31A5DDE934A4C`
+    - `tests/test_effects.py`: `8AE4555C1A103261596651A7E437E2E1D5502B63EC0C9290799792B6F124C80E`
+    - `tests/test_volume.py`: `49747944B38F875E5051955DBE20D4700B8E331578F9433C1AAABC909CDB2C54`
+    - vygenerované `examples/human_motion.csv`: `9CF201211C2F4FDBA4E495EC68C94900C82572B53E790F0D31A086A89FE08148`
+  - Schválil: člověk
+  - Datum: 2026-11-07
+  - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize.

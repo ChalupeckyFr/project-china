@@ -10,6 +10,7 @@ from project_china.selection import select_depth_regions
 from project_china.synthetic_human import human_frame
 from project_china.volume import (
     FILL_JITTER,
+    body_anchor,
     fill_field,
     fill_targets,
     filled_depth,
@@ -85,14 +86,27 @@ def test_fill_is_homogeneous_without_clumps_or_holes() -> None:
         assert gap[interior].max() < lattice.spacing
 
 
-def test_fill_targets_keep_their_id_and_position_between_frames() -> None:
+def test_fill_targets_keep_their_id_and_ride_with_the_body() -> None:
     _, _, lattice, fields = _keyframes(range(20, 40))
 
     previous = None
+    previous_points = None
     for current, following in itertools.pairwise(fields):
         for alpha in (0, 0.25, 0.5, 0.75):
             fill = fill_targets(lattice, current, following, alpha)
-            np.testing.assert_array_equal(fill.points, lattice.points[fill.ids])
+            # The whole lattice shifts sideways with the body core, rigidly.
+            shift = fill.points - lattice.points[fill.ids]
+            assert np.ptp(shift[:, 0]) < 1e-9
+            assert np.abs(shift[:, 1]).max() < 1e-9
+            assert abs(shift[0, 0]) < 3
+            if previous_points is not None:
+                common, now, before = np.intersect1d(
+                    fill.ids, previous, return_indices=True
+                )
+                assert len(common)
+                # A target id never jumps between neighbouring render steps.
+                moved = np.hypot(*(fill.points[now] - previous_points[before]).T)
+                assert moved.max() < 0.5
             if previous is not None:
                 changed = np.setxor1d(previous, fill.ids)
                 # Only points at the moving silhouette edge switch on or off.
@@ -103,6 +117,55 @@ def test_fill_targets_keep_their_id_and_position_between_frames() -> None:
                 assert distance.max() < 10
                 assert len(changed) < 0.1 * len(fill.ids)
             previous = fill.ids
+            previous_points = fill.points
+
+
+def test_body_anchor_moves_continuously_with_the_weight_shift() -> None:
+    centres = [
+        body_anchor(select_depth_regions(human_frame(index)).mask).centre_x
+        for index in range(0, 240, 4)
+    ]
+    assert max(abs(b - a) for a, b in itertools.pairwise(centres)) < 0.5
+    assert np.ptp(centres) < 3
+
+
+def test_limb_targets_know_the_bone_axis_and_the_room_to_the_edge() -> None:
+    _, _, lattice, fields = _keyframes((0, 60))
+    raised = fill_targets(lattice, fields[1], fields[1], 0)
+    centre = raised.points[:, 0].mean()
+
+    torso = (np.abs(raised.points[:, 0] - centre) < 10) & (
+        (raised.points[:, 1] > 170) & (raised.points[:, 1] < 220)
+    )
+    assert raised.limb[torso].max() < 0.05
+    # Forearms raised above the head are vertical: the axis across them is horizontal.
+    forearm = raised.points[:, 1] < 110
+    assert forearm.sum() > 30
+    assert raised.limb[forearm].mean() > 0.9
+    assert np.abs(raised.axes[forearm, 0]).mean() > 0.8
+    np.testing.assert_allclose(np.hypot(*raised.axes.T), 1)
+    # Room is the distance to the outer edge, positive inside the silhouette.
+    assert raised.room.min() >= 0
+    assert raised.room.max() > 15
+
+
+def test_fill_density_drops_at_most_thirty_percent_at_the_edge() -> None:
+    _, selections, lattice, fields = _keyframes(_FRAMES)
+
+    for selection, field in zip(selections, fields, strict=True):
+        fill = fill_targets(lattice, field, field, 0)
+        mask = selection.mask != 0
+        inside = cv2.distanceTransform(
+            mask.astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE
+        )
+        edge = mask & (inside <= 4)
+        core = mask & (inside >= 8)
+        rows, columns = _pixels(fill.points)
+        density = [
+            np.count_nonzero(band[rows, columns]) / np.count_nonzero(band)
+            for band in (edge, core)
+        ]
+        assert density[0] >= 0.7 * density[1]
 
 
 def test_blended_silhouette_grows_smoothly_between_keyframes() -> None:

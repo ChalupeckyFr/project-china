@@ -1,4 +1,6 @@
 import argparse
+import math
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
@@ -102,6 +104,7 @@ def _body_targets(
     alpha: float,
     lattice: FillLattice | None,
     transform: tuple[float, float, float],
+    depth_range: tuple[float, float] | None = None,
 ) -> BodyTargets:
     _, current_shapes, current_depths, current_field = keyframe
     _, next_shapes, next_depths, next_field = next_keyframe
@@ -112,7 +115,9 @@ def _body_targets(
         alpha,
     )
     if lattice is None or current_field is None or next_field is None:
-        return BodyTargets(_to_screen(outline, transform), outline_depth)
+        return BodyTargets(
+            _to_screen(outline, transform), outline_depth, depth_range=depth_range
+        )
     fill = fill_targets(lattice, current_field, next_field, alpha)
     return BodyTargets(
         _to_screen(outline, transform),
@@ -120,7 +125,25 @@ def _body_targets(
         _to_screen(fill.points, transform),
         fill.depth,
         fill.ids,
+        fill.axes,
+        fill.limb,
+        fill.room * transform[0],
+        depth_range,
     )
+
+
+def _depth_range(
+    frames: Sequence[DepthFrame], selections: Sequence[DepthSelection]
+) -> tuple[float, float] | None:
+    """Depth extremes of the silhouettes over the whole sequence, so shading
+    does not pulse when one frame's nearest or farthest point changes."""
+    nearest, farthest = math.inf, -math.inf
+    for frame, selection in zip(frames, selections, strict=True):
+        values = np.asarray(frame.depths)[selection.mask != 0]
+        if len(values):
+            nearest = min(nearest, float(values.min()))
+            farthest = max(farthest, float(values.max()))
+    return (nearest, farthest) if farthest > nearest else None
 
 
 def _keyframe(
@@ -181,6 +204,17 @@ class _KeyframeCache:
             if volume_count and self._frames
             else None
         )
+        self._depth_range: tuple[float, float] | None = None
+        self._depth_range_known = False
+
+    @property
+    def depth_range(self) -> tuple[float, float] | None:
+        if not self._depth_range_known:
+            self._depth_range = _depth_range(
+                self._frames, [self.selection(index) for index in range(len(self._frames))]
+            )
+            self._depth_range_known = True
+        return self._depth_range
 
     def selection(self, index: int) -> DepthSelection:
         selection = self._selections.get(index)
@@ -214,6 +248,7 @@ def run_demo(
     if volume_count:
         for index in range(len(sequence.frames)):
             keyframes.get(index)
+    depth_range = keyframes.depth_range
     previous_outline: NDArray[np.float64] | None = None
 
     pygame.init()
@@ -251,6 +286,7 @@ def run_demo(
                 alpha,
                 keyframes.lattice,
                 _grid_transform(screen.get_size(), _frame_grid_size(current_frame)),
+                depth_range,
             )
             # Fill targets sit on a static lattice; only the outline can jump.
             outline = limit_speed(
@@ -271,6 +307,10 @@ def run_demo(
                     body.volume,
                     body.volume_depth,
                     body.volume_ids,
+                    body.volume_axes,
+                    body.volume_limb,
+                    body.volume_room,
+                    body.depth_range,
                 ),
             )
             pygame.display.flip()

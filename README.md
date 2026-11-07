@@ -122,8 +122,11 @@ Jde o procedurální čelní ortografický model, nikoli skutečný sken. Tělo 
 složené ze vzdálenostních polí (SDF): trup tvoří hrudník, pas široký asi 75 %
 šířky ramen a pánev, končetiny jsou zužované kapsle (rameno → loket → zápěstí,
 stehno → koleno → kotník) a dlaně jsou zploštělé elipsoidy natočené podle
-předloktí a předsunuté asi o 7,5 cm ke kameře, takže patří spolu se středem
-hrudníku k nejbližším bodům. Hlava je hladký elipsoid bez uší, krk má asi 46 % šířky hlavy.
+předloktí a předsunuté asi o 7 cm ke kameře, takže patří spolu se středem
+hrudníku k nejbližším bodům. Paže jsou dost silné, aby ani svislé nesplynuly
+do jedné řady hvězd: poloměr předloktí je asi 14,6 px obrazovky a zápěstí
+asi 10,4 px ([T-022](TASKS.md#t-022)).
+Hlava je hladký elipsoid bez uší, krk má asi 46 % šířky hlavy.
 Spoje trupu, krku, ramen a končetin jsou slité polynomiálním smooth minimum
 (`SMIN_K = 0.15` v jednotkách šířky hlavy, tj. asi 2,5 cm), takže v podpaží
 ani u krku nevznikají ostré zářezy. Hloubka (2.5D) se nepočítá po segmentech:
@@ -142,8 +145,8 @@ se mírně ohne na druhou stranu. Hrudník dýchá s periodou 4 s (amplituda 2,5
 šířky trupu v šířce hrudníku i výšce ramen) a nad horizontálou
 se hrudní kost s ramenním pletencem zvedne asi o 4 px obrazovky; kyčle jemně
 přenášejí váhu. Anatomická přesnost vůči skutečnému člověku nebyla změřena;
-parametry popisují [DEC-017](DECISIONS.md#dec-017) a
-[DEC-022](DECISIONS.md#dec-022).
+parametry popisují [DEC-017](DECISIONS.md#dec-017),
+[DEC-022](DECISIONS.md#dec-022) a [DEC-023](DECISIONS.md#dec-023).
 
 Spuštění:
 
@@ -215,26 +218,36 @@ matice samostatný modul `project_china.volume`:
   shluků a děr. Rozestup se při startu nastaví tak, aby nejplnější snímek
   potřeboval nejvýše 97 % objemových hvězd. Cílem je každý bod mřížky
   uvnitř siluety; mezi snímky se prolínají znaménkové vzdálenostní pole
-  celé binární siluety, takže tělo plynule roste a ubývá, body mřížky se
-  nehýbou a v podpaží ani v kloubech nevzniká vnitřní hrana. Obrysové
-  hvězdy vznikají jen na vnější hranici celé siluety.
+  celé binární siluety, takže tělo plynule roste a ubývá a v podpaží ani
+  v kloubech nevzniká vnitřní hrana. Mřížka se jako celek posouvá do stran
+  s váženým těžištěm silného jádra těla (přenos váhy), takže body trupu
+  jedou s tělem a nepřeskakují. Hustota je všude stejná; u okraje klesá
+  nejvýše o 30 %. Obrysové hvězdy vznikají jen na vnější hranici celé siluety.
 - Párování: každý bod mřížky má stálé ID. Hvězda si drží svůj cíl, dokud
-  jeho ID existuje; uvolněné hvězdy dostanou nejbližší volný cíl. Hvězdy
-  bez cíle zůstanou na místě a vyblednou (asi 120 ms); hvězda letící
-  k cíli vzdálenému víc než 8–20 px je tmavá, aby nebylo vidět přelétání
-  mimo tělo.
+  jeho ID existuje; uvolněná hvězda si vezme nejbližší volný cíl do 12 px.
+  Vzdálenější nový cíl převezme neviditelná hvězda z poolu, objeví se přímo
+  na něm a rozsvítí se, takže přes tělo nepřelétají blikající hvězdy.
+  Hvězdy bez cíle zůstanou na místě a vyblednou (asi 120 ms).
 - Hloubka: každá hvězda je měkký kotouč, jehož poloměr a alfa plynou po
-  částech lineárně z blízkosti (hloubka normalizovaná min/max v rámci
-  snímku): vzdálené okraje 1,5 px a alfa 0,22, střední 2,4 px a 0,55,
-  nejbližší (střed hrudníku, dlaně) 4,0 px a 0,95 s teplejším odstínem.
-  Objemový dojem tedy vzniká velikostí, jasem a barvou, ne prázdnými místy.
+  částech lineárně z blízkosti. Blízkost je hloubka normalizovaná pevným
+  rozsahem celé sekvence (ne extrémy jednotlivého snímku): boky a okraje
+  1,5 px a alfa 0,35, střední 2,4 px a 0,55, nejbližší (střed hrudníku,
+  dlaně) 3,5 px a 0,95 s teplejším odstínem. Blízkost, poloměr i alfa se
+  vyhlazují exponenciálním filtrem `předchozí · 0,8 + cíl · 0,2` za krok
+  60 Hz, takže hrudník nebliká. Objemový dojem vzniká jen velikostí,
+  jasem a barvou, ne prázdnými místy.
 - Každá hvězda obrysu má k cíli malý posun 1,5–2,5 px, objemová 0,3–0,6 px
   (mřížka už je rozházená); posun pomalu obíhá, takže nevzniká rastr ani
-  zdvojené čáry.
-- Hvězdy se k cíli blíží přetlumeně: za každý referenční krok 60 Hz urazí
-  25 % zbývající vzdálenosti, nejvýše 10 px, takže za rychlou paží mírně
-  zaostávají, ale nikdy cíl nepřestřelí ani nevystřelí z těla. Náběh přitažlivosti trvá
-  180 ms a uvolnění má časovou konstantu 700 ms.
+  zdvojené čáry. Hvězdy končetin mají navíc stálý posun kolmo na kost
+  v rozsahu ±3 px, oříznutý tak, aby zůstaly 1 px uvnitř siluety. Svislá
+  paže tak drží plný válcový objem. Směr kosti se bere ze strukturního
+  tenzoru vzdálenostního pole, „končetinovost“ z lokální poloviční šířky.
+- Hvězdy se k cíli blíží přetlumeně: za každý referenční krok 60 Hz chtějí
+  urazit 25 % zbývající vzdálenosti, nejvýše 10 px. Rychlost se za krok
+  změní nejvýše o 2 px a krok nikdy nepřesáhne zbývající vzdálenost. Za
+  rychlou paží tak mírně zaostávají, v úvratích nepřekmitnou ani
+  nekmitají a nevystřelí z těla. Náběh přitažlivosti trvá 180 ms
+  a uvolnění má časovou konstantu 700 ms.
 - Body obrysu rychlejší než 150 px/s (paže, předloktí, dlaně) víří hvězdy
   pozadí do 32 px: odpudivá složka kolmo na směr kosti, tečná ve směru
   švihu a mírná turbulence napříč. Hvězdy si pak každý krok 60 Hz ponechají
@@ -243,7 +256,8 @@ matice samostatný modul `project_china.volume`:
 
 Parametry nemají nastavovací UI; popisují je
 [`DEC-018`](DECISIONS.md#dec-018), [`DEC-019`](DECISIONS.md#dec-019),
-[`DEC-020`](DECISIONS.md#dec-020) a [`DEC-021`](DECISIONS.md#dec-021),
+[`DEC-020`](DECISIONS.md#dec-020), [`DEC-021`](DECISIONS.md#dec-021),
+[`DEC-022`](DECISIONS.md#dec-022) a [`DEC-023`](DECISIONS.md#dec-023),
 původní přijaté hodnoty
 [`DEC-009`](DECISIONS.md#dec-009).
 

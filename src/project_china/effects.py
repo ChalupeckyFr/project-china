@@ -22,11 +22,14 @@ PARTICLE_COUNT = 72
 _ATTRACTION_RAMP_MS = 180.0
 _RELEASE_TIME_MS = 700.0
 _REFERENCE_TICK_MS = 1000 / 60
-# Overdamped follow: each reference tick (1/60 s) a particle covers this
-# share of the remaining distance, never more than MAX_TICK_DISTANCE pixels,
-# so it can neither overshoot nor shoot out of the silhouette.
+# Overdamped follow: each reference tick (1/60 s) a particle wants to cover
+# this share of the remaining distance, never more than MAX_TICK_DISTANCE
+# pixels. Its velocity changes by at most MAX_TICK_ACCELERATION pixels per
+# tick, and a step never exceeds the remaining distance, so a particle
+# neither overshoots nor oscillates when the arms stop at a turning point.
 FOLLOW_RATE = 0.25
 MAX_TICK_DISTANCE = 10.0
+MAX_TICK_ACCELERATION = 2.0
 # Volume particles without a target fade out in place within about this time.
 FADE_MS = 120.0
 # Volume particles flying to a distant new target stay dark until they are
@@ -34,23 +37,38 @@ FADE_MS = 120.0
 TRANSIT_FADE = (8.0, 20.0)
 # Rounds of nearest-free-target matching before the rest is paired in order.
 _MATCH_ROUNDS = 24
+# A released volume particle takes a free target only this close (screen
+# pixels). Farther new targets are taken by hidden pooled particles, which
+# respawn on the spot and fade in, so no star crosses the body and flickers.
+MATCH_RADIUS = 12.0
+_HIDDEN = 0.05
 
 # Static scatter around each target, slowly orbiting, in screen pixels.
 # Volume targets already sit on a jittered lattice, so they move only a little.
 JITTER_RANGE = (1.5, 2.5)
 VOLUME_JITTER_RANGE = (0.3, 0.6)
 _JITTER_SPIN = (0.3, 0.9)
+# Fixed scatter of limb volume particles across the bone (screen pixels):
+# each particle keeps its own offset in [-LIMB_SCATTER, LIMB_SCATTER], scaled
+# by how limb-like its target is and kept inside the silhouette, so a raised
+# arm keeps its full width instead of collapsing into one row of stars.
+LIMB_SCATTER = 3.0
+_EDGE_MARGIN = 1.0
 
-# Depth shading: nearness 0 (receding edges), 0.5 (middle) and 1 (closest
+# Depth shading: nearness 0 (receding sides), 0.5 (middle) and 1 (closest
 # chest, muscles, palms) map piecewise linearly to the radius of a soft disc
 # in screen pixels and to its peak alpha. Near particles also turn warmer.
+# Depth is shown only by size and brightness, never by leaving gaps.
 DEPTH_LEVELS = (0.0, 0.5, 1.0)
-DEPTH_RADIUS = (1.5, 2.4, 4.0)
-DEPTH_ALPHA = (0.22, 0.55, 0.95)
+DEPTH_RADIUS = (1.5, 2.4, 3.5)
+DEPTH_ALPHA = (0.35, 0.55, 0.95)
 COLD_COLOR = (170, 192, 255)
 WARM_COLOR = (255, 238, 210)
+# Temporal smoothing per reference tick: value = previous * 0.8 + target * 0.2.
+SHADING_KEEP = 0.8
 _MIN_WEIGHT = 0.05
 _TWINKLE = 0.15
+_VOLUME_TWINKLE = 0.05
 _SPLAT_OFFSETS = np.arange(-4, 6, dtype=np.float64)
 _SPLAT_SIZE = len(_SPLAT_OFFSETS)
 
@@ -77,8 +95,13 @@ class BodyTargets:
     """Screen targets of one rendered frame.
 
     Depths are raw values from the depth matrix; smaller is closer to the
-    camera. Missing depths render every particle as near. ``volume_ids``
+    camera. Missing depths render every particle as near. ``depth_range``
+    (nearest, farthest) fixes the depth normalisation for the whole sequence;
+    without it each frame is normalised by its own extremes. ``volume_ids``
     identify volume targets across frames; without them the index is used.
+    ``volume_axes`` are unit vectors across the bone, ``volume_limb`` says how
+    limb-like (0..1) each target is and ``volume_room`` is its distance from
+    the outer edge in screen pixels.
     """
 
     outline: _Points
@@ -86,6 +109,27 @@ class BodyTargets:
     volume: _Points | None = None
     volume_depth: _Values | None = None
     volume_ids: NDArray[np.intp] | None = None
+    volume_axes: _Points | None = None
+    volume_limb: _Values | None = None
+    volume_room: _Values | None = None
+    depth_range: tuple[float, float] | None = None
+
+
+def _limb_scatter(body: BodyTargets, count: int) -> tuple[_Points, _Values] | None:
+    """Per-target scatter direction (across the bone, scaled by limb weight)
+    and the largest offset that keeps a particle inside the silhouette."""
+    if body.volume_axes is None or body.volume_limb is None:
+        return None
+    axes = np.asarray(body.volume_axes, dtype=np.float64).reshape(-1, 2)
+    limb = np.asarray(body.volume_limb, dtype=np.float64)
+    if len(axes) != count or len(limb) != count:
+        raise ValueError("Volume axes and limb weights must match the volume targets.")
+    if body.volume_room is None:
+        reach = np.full(count, LIMB_SCATTER)
+    else:
+        room = np.asarray(body.volume_room, dtype=np.float64)
+        reach = np.clip(room - _EDGE_MARGIN, 0, LIMB_SCATTER)
+    return axes * limb[:, None], reach
 
 
 def _as_targets(
@@ -145,6 +189,13 @@ class StarEffect:
             (-1.0, 1.0), total
         )
         self._nearness = np.full(total, 0.5)
+        self._radius = np.full(total, DEPTH_RADIUS[1])
+        self._depth_alpha = np.full(total, DEPTH_ALPHA[1])
+        self._shade = np.zeros(total)
+        self._twinkle = np.full(total, _TWINKLE)
+        self._twinkle[particle_count:] = _VOLUME_TWINKLE
+        self._scatter_share = generator.uniform(-1, 1, total)
+        self._scatter = np.zeros((total, 2))
         self._turbulence = generator
 
         self._target = np.zeros((total, 2))
@@ -152,6 +203,9 @@ class StarEffect:
         self._jittered = np.zeros((total, 2))
         self._offset = np.zeros((total, 2))
         self._speed = np.zeros(total)
+        self._velocity = np.zeros((total, 2))
+        self._change = np.zeros((total, 2))
+        self._distance = np.zeros(total)
         self._assigned = np.zeros(total, dtype=np.bool_)
         self._presence = np.ones(total)
         self._slot_id = np.full(volume_count, -1, dtype=np.intp)
@@ -237,7 +291,10 @@ class StarEffect:
             for values in (outline_depth, volume_depth)
             if values is not None and len(values)
         ]
-        if depths and outline_depth is not None:
+        if body.depth_range is not None:
+            nearest, farthest = body.depth_range
+            spread = farthest - nearest
+        elif depths and outline_depth is not None:
             stacked = np.concatenate(depths)
             nearest, farthest = stacked.min(), stacked.max()
             spread = farthest - nearest
@@ -247,7 +304,9 @@ class StarEffect:
         def nearness(values: _Values | None, count: int) -> _Values:
             if values is None or spread <= 1e-9:
                 return np.ones(count)
-            return (farthest - np.asarray(values, dtype=np.float64)) / spread
+            return np.clip(
+                (farthest - np.asarray(values, dtype=np.float64)) / spread, 0, 1
+            )
 
         outline_near = nearness(outline_depth, len(outline))
         count = self._outline_count
@@ -264,17 +323,28 @@ class StarEffect:
                     if body.volume_ids is None
                     else np.asarray(body.volume_ids, dtype=np.intp)
                 )
+                across = _limb_scatter(body, len(volume))
             else:
                 source, source_near = outline, outline_near
                 ids = np.arange(len(outline))
-            self._match_volume(source, source_near, ids)
+                across = None
+            self._match_volume(source, source_near, ids, across)
 
-    def _match_volume(self, points: _Points, near: _Values, ids: NDArray[np.intp]) -> None:
+    def _match_volume(
+        self,
+        points: _Points,
+        near: _Values,
+        ids: NDArray[np.intp],
+        across: tuple[_Points, _Values] | None = None,
+    ) -> None:
         """Keep each volume particle on its target id; pair the rest by proximity.
 
         A particle whose target id is still present keeps it, so targets never
         swap between body parts. Released particles take the nearest free
-        target; particles left without one stay where they are and fade out.
+        target within MATCH_RADIUS; remaining new targets go to hidden pooled
+        particles, which respawn there and fade in. Only when no hidden
+        particle is left (e.g. at start) do particles fly to distant targets.
+        Particles left without a target stay where they are and fade out.
         """
         start = self._outline_count
         slots = self._slot_id
@@ -291,23 +361,19 @@ class StarEffect:
         owner[target_of[kept]] = kept
 
         free = np.flatnonzero(~keeps)
-        open_targets = np.flatnonzero(owner < 0)
         positions = self._position[start:]
-        for _ in range(_MATCH_ROUNDS):
-            if not len(free) or not len(open_targets):
-                break
-            offset = positions[free, None, :] - points[None, open_targets, :]
-            distance = np.hypot(offset[..., 0], offset[..., 1])
-            choice = np.argmin(distance, axis=1)
-            # Each wanted target goes to its closest applicant.
-            ranking = np.lexsort((distance[np.arange(len(free)), choice], choice))
-            first = np.ones(len(ranking), dtype=np.bool_)
-            first[1:] = choice[ranking][1:] != choice[ranking][:-1]
-            winners = ranking[first]
-            target_of[free[winners]] = open_targets[choice[winners]]
-            owner[open_targets[choice[winners]]] = free[winners]
-            free = np.delete(free, winners)
-            open_targets = np.flatnonzero(owner < 0)
+        presence = self._presence[start:]
+        free = self._match_nearest(free, points, target_of, owner, MATCH_RADIUS)
+
+        open_targets = np.flatnonzero(owner < 0)
+        hidden = free[presence[free] < _HIDDEN]
+        spawned = hidden[: len(open_targets)]
+        target_of[spawned] = open_targets[: len(spawned)]
+        owner[open_targets[: len(spawned)]] = spawned
+        free = np.setdiff1d(free, spawned, assume_unique=True)
+
+        free = self._match_nearest(free, points, target_of, owner, math.inf)
+        open_targets = np.flatnonzero(owner < 0)
         pairs = min(len(free), len(open_targets))
         target_of[free[:pairs]] = open_targets[:pairs]
 
@@ -315,8 +381,61 @@ class StarEffect:
         slots[...] = -1
         slots[assigned] = ids[target_of[assigned]]
         self._assigned[start:] = assigned
-        self._target[start:][assigned] = points[target_of[assigned]]
-        self._target_nearness[start:][assigned] = near[target_of[assigned]]
+        chosen = target_of[assigned]
+        self._target[start:][assigned] = points[chosen]
+        self._target_nearness[start:][assigned] = near[chosen]
+        scatter = self._scatter[start:]
+        if across is None:
+            scatter[...] = 0
+        else:
+            axes, reach = across
+            # Each particle keeps its own share, so the arm width never reshuffles.
+            share = self._scatter_share[start:][assigned]
+            scatter[assigned] = axes[chosen] * np.clip(
+                share * LIMB_SCATTER, -reach[chosen], reach[chosen]
+            )[:, None]
+        if len(spawned):
+            # Invisible respawn: start on the target with its final shading.
+            particle = start + spawned
+            positions[spawned] = points[target_of[spawned]] + scatter[spawned]
+            self._velocity[particle] = 0
+            nearness = near[target_of[spawned]]
+            self._nearness[particle] = nearness
+            self._radius[particle] = np.interp(nearness, DEPTH_LEVELS, DEPTH_RADIUS)
+            self._depth_alpha[particle] = np.interp(nearness, DEPTH_LEVELS, DEPTH_ALPHA)
+
+    def _match_nearest(
+        self,
+        free: NDArray[np.intp],
+        points: _Points,
+        target_of: NDArray[np.intp],
+        owner: NDArray[np.intp],
+        radius: float,
+    ) -> NDArray[np.intp]:
+        """Give free volume particles their nearest open target within ``radius``;
+        returns the particles still without a target."""
+        positions = self._position[self._outline_count :]
+        open_targets = np.flatnonzero(owner < 0)
+        for _ in range(_MATCH_ROUNDS):
+            if not len(free) or not len(open_targets):
+                break
+            offset = positions[free, None, :] - points[None, open_targets, :]
+            distance = np.hypot(offset[..., 0], offset[..., 1])
+            choice = np.argmin(distance, axis=1)
+            best = distance[np.arange(len(free)), choice]
+            reachable = np.flatnonzero(best <= radius)
+            if not len(reachable):
+                break
+            # Each wanted target goes to its closest applicant.
+            ranking = reachable[np.lexsort((best[reachable], choice[reachable]))]
+            first = np.ones(len(ranking), dtype=np.bool_)
+            first[1:] = choice[ranking][1:] != choice[ranking][:-1]
+            winners = ranking[first]
+            target_of[free[winners]] = open_targets[choice[winners]]
+            owner[open_targets[choice[winners]]] = free[winners]
+            free = np.delete(free, winners)
+            open_targets = np.flatnonzero(owner < 0)
+        return free
 
     def _step_particles(self, delta_ms: int) -> None:
         ticks = delta_ms / _REFERENCE_TICK_MS
@@ -336,21 +455,37 @@ class StarEffect:
                 out=self._jittered,
             )
             self._jittered += self._target
+            self._jittered += self._scatter
             assigned = self._assigned
-            self._nearness[assigned] += (
-                self._target_nearness[assigned] - self._nearness[assigned]
-            ) * min(1.0, strength)
+            self._smooth_shading(ticks, assigned)
 
-            # Exponential approach (never past the target), capped per tick.
+            # Exponential approach, capped per tick, with limited acceleration.
             share = 1 - (1 - FOLLOW_RATE * strength) ** ticks
             np.subtract(self._jittered, self._position, out=self._offset)
-            self._offset *= share
+            np.hypot(self._offset[:, 0], self._offset[:, 1], out=self._distance)
+            self._offset *= share / ticks
             self._offset[~assigned] = 0
             np.hypot(self._offset[:, 0], self._offset[:, 1], out=self._speed)
-            max_move = MAX_TICK_DISTANCE * ticks
-            too_fast = self._speed > max_move
+            too_fast = self._speed > MAX_TICK_DISTANCE
             if too_fast.any():
-                self._offset[too_fast] *= (max_move / self._speed[too_fast])[:, None]
+                self._offset[too_fast] *= (MAX_TICK_DISTANCE / self._speed[too_fast])[:, None]
+            # Velocity in pixels per tick moves towards the wanted one.
+            np.subtract(self._offset, self._velocity, out=self._change)
+            np.hypot(self._change[:, 0], self._change[:, 1], out=self._speed)
+            max_change = MAX_TICK_ACCELERATION * ticks
+            too_sudden = self._speed > max_change
+            if too_sudden.any():
+                self._change[too_sudden] *= (max_change / self._speed[too_sudden])[:, None]
+            self._velocity += self._change
+            np.multiply(self._velocity, ticks, out=self._offset)
+            # A step never goes beyond the remaining distance: no overshoot.
+            np.hypot(self._offset[:, 0], self._offset[:, 1], out=self._speed)
+            too_far = self._speed > self._distance
+            if too_far.any():
+                self._offset[too_far] *= (
+                    self._distance[too_far] / self._speed[too_far]
+                )[:, None]
+                self._velocity[too_far] = self._offset[too_far] / ticks
             self._position += self._offset
 
             np.subtract(self._jittered, self._position, out=self._offset)
@@ -362,11 +497,24 @@ class StarEffect:
             self._presence += (goal - self._presence) * fade
         else:
             self._presence += (1 - self._presence) * fade
+            self._velocity[...] = 0
 
         self._position += self._drift * (seconds * (1 - strength))
         if strength == 0:
             self._position[:, 0] %= self._width
             self._position[:, 1] %= self._height
+    def _smooth_shading(self, ticks: float, assigned: NDArray[np.bool_]) -> None:
+        """Exponential filter of nearness, radius and alpha towards the targets."""
+        share = 1 - SHADING_KEEP**ticks
+        target = self._target_nearness
+        self._nearness[assigned] += (target[assigned] - self._nearness[assigned]) * share
+        self._shade[...] = np.interp(target, DEPTH_LEVELS, DEPTH_RADIUS)
+        self._radius[assigned] += (self._shade[assigned] - self._radius[assigned]) * share
+        self._shade[...] = np.interp(target, DEPTH_LEVELS, DEPTH_ALPHA)
+        self._depth_alpha[assigned] += (
+            self._shade[assigned] - self._depth_alpha[assigned]
+        ) * share
+
     def _stir_stars(self, outline: _Points | None, seconds: float) -> None:
         previous = self._previous_outline
         if outline is None:
@@ -459,11 +607,11 @@ class StarEffect:
         wave = (np.sin(elapsed_ms / 180 + self._phase) + 1) / 2
         near = self._nearness
         alpha = (
-            np.interp(near, DEPTH_LEVELS, DEPTH_ALPHA)
-            * (1 - _TWINKLE + _TWINKLE * wave)
+            self._depth_alpha
+            * (1 - self._twinkle + self._twinkle * wave)
             * self._presence
         )
-        radius = np.interp(near, DEPTH_LEVELS, DEPTH_RADIUS)
+        radius = self._radius
 
         columns = np.floor(x)[:, None] + _SPLAT_OFFSETS
         rows = np.floor(y)[:, None] + _SPLAT_OFFSETS

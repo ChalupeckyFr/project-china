@@ -350,3 +350,79 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
   - Revize po kontrole návrhu (tři vady: dlaně se kreslily jako vzdálené – blízkost ≈ 0,4; dýchání 3 s místo ~4 s; `runHuman.ps1` přehrával staré CSV): Smyčka generátoru 240 snímků po 50 ms (12 s), paže z `snímek % 120` (dva stejné cykly po 6 s, rychlost beze změny), dech s periodou 80 snímků = 4 s (tři nádechy). Krok 100 ms při 120 snímcích byl zamítnut: prolnutí SDF sousedních snímků rozpadalo tělo až na 8 komponent. Zápěstí předsunuto o 0,040 m a dlaň celkem o 0,075 m ke kameře; normovaná blízkost středu dlaní ve snímcích 0/15/30/45/60/90 je 0,85–1,00 a středu hrudníku 0,92–1,00 (při 0,090 m klesal hrudník na 0,84, proto 0,075). Kinematika paže vyčleněna do `_arm_joints` beze změny geometrie. `runHuman.ps1` přegeneruje CSV, chybí-li nebo je starší než `synthetic_human.py`, do `human_motion.csv.new` a přesune ho na místo. Nové testy: periodicita paží 6 s, perioda dechu 3,5–4,5 s s dominantní frekvencí 3 na smyčku a uzavřením smyčky, šev 119→120 a 239→0, blízkost dlaní ≥ 0,8 a hrudníku ≥ 0,9; souvislost všech 240 snímků. V CPythonu 3.13.17 s Pygame 2.6.1: `pytest -q` → `368 passed in 57.26s`, `ruff check src tests` → `All checks passed!`, `git diff --check` bez chyb. Smoke `runHuman.ps1` s SDL dummy: zastaralé CSV detekováno, vygenerováno za 32 s (240 snímků, 608 466 502 B, SHA-256 `7A0B05542699F9ED5C355F12F9C2632772B877645ABA83B76937D37D11A50D96`), demo naběhlo a vykreslovalo (~2,7 GB paměti) do ručního ukončení po ~150 s; samotné `load_depth_csv` 21,7 s, poslední snímek 11 950 ms. Simulace 12 s smyčky (360 + 1 500 hvězd, 960×720, krok 16 ms): předpočet 1,3–1,6 s, vykreslení medián 8,1–8,5 ms, p95 9,4–11,0 ms, největší výchylka hvězdy 56,0 px. Náhledy `T-021-a-1500.png`, `T-021-b-3008.png`, `T-021-c-4500.png` (session artefakty) ukazují dlaně spolu se středem hrudníku jako nejjasnější teplé body. `runObject.ps1` s SDL dummy běžel déle než 45 s bez chyb. Otisky v [DEC-022](DECISIONS.md#dec-022).
 - Stav: dokonceno
 - Poznámky: `runHuman.ps1` po změně generátoru CSV přegeneruje sám (asi 30 s generování + asi 22 s načítání); CSV je výstupem téhož skriptu, rozhodnutí v [DEC-022](DECISIONS.md#dec-022).
+
+## T-022
+
+- Název: Plné paže, stabilní jas hrudníku, rovnoměrná hustota a tlumení v úvratích
+- Cíl: Odstranit čtyři vizuální chyby animace postavy:
+  - body paže se při zvedání slévají do jedné čáry;
+  - hrudník bliká;
+  - hustota těla je nerovnoměrná (díry na bocích);
+  - částice v úvratích překmitávají.
+- Vazby: [AC-001](SPEC.md#ac-001), [DEC-023](DECISIONS.md#dec-023), [T-021](#t-021).
+- Rozsah:
+  - poloměry paží a dlaní a předsun dlaní v `src/project_china/synthetic_human.py`;
+  - kotva mřížky, osa kosti, váha končetiny a prostor k okraji v `src/project_china/volume.py`;
+  - pevný rozsah hloubky a předání nových polí v `src/project_china/demo.py`;
+  - stínování, filtr, rozptyl, párování a omezení zrychlení v `src/project_china/effects.py`;
+  - testy, README; CSV přegenerované skriptem `runHuman.ps1`.
+  - Formát CSV, rozlišení, načítání a výběr se nemění.
+- Závislosti: T-021
+- Riziko:
+  - silnější paže zvětší siluetu a mohou se v klidu dotknout boků;
+  - posun mřížky s tělem nesmí měnit ID cílů;
+  - omezení zrychlení zvětší zpoždění za rychlou paží.
+- Hotovo když:
+  - předloktí má poloměr 14–18 px a zápěstí 10–12 px obrazovky; částice končetin mají stálý rozptyl kolmo na kost ±2,0–3,5 px a neopustí siluetu;
+  - poloměr, alfa i blízkost se vyhlazují filtrem 0,8/0,2; vnitřní body trupu se posouvají s tělem bez přelosování;
+  - hustota u okraje klesá nejvýše o 30 %; hloubka se ukazuje jen jasem (0,95 / 0,35) a velikostí (3,5 / 1,5 px);
+  - částice v úvratích nepřekmitnou ani nekmitají;
+  - testy a Ruff projdou; oba skripty běží.
+- Ověření:
+  - Plán:
+    - jednotkové testy kotvy, osy kosti a váhy končetiny, hustoty u okraje, poloměrů paží, filtru, pevného rozsahu hloubky, rozptylu kolmo na kost a jeho ořezu, zastavení bez kmitání a omezení zrychlení;
+    - celá sada a Ruff;
+    - simulace celé 12 s smyčky (360 + 1 500 hvězd, 960×720, krok 16 ms) s metrikami blikání hrudníku a šířky zvednuté paže;
+    - náhledy;
+    - smoke obou skriptů s SDL dummy.
+  - Výsledek:
+    - Generátor:
+      - poloměry nadloktí 0,072/0,064 m a předloktí 0,062/0,044 m, tj. předloktí 14,6 px a zápěstí 10,4 px obrazovky (test přes `_grid_transform`);
+      - dlaň je elipsoid 0,050 × 0,096 m;
+      - předsun dlaně snížen 0,075 → 0,070 m, protože větší dlaň byla při vodorovných pažích o 4 jednotky blíž než hrudník a ten klesl na blízkost 0,90;
+      - po úpravě je na celé smyčce (krok 5 snímků) blízkost hrudníku ≥ 0,921 a dlaní ≥ 0,831;
+      - test zužování paže snížen z 1,3× na 1,25×, protože zadání vyžaduje silnější zápěstí (naměřeno 18 : 14 bodů).
+    - Výplň:
+      - mřížka se posouvá do stran podle váženého těžiště jádra (dílčí krok ≤ 0,5 bodu, rozkmit < 3 body na smyčce);
+      - stejné ID se mezi sousedními kroky renderu posune o < 0,5 bodu mřížky (simulace 0,18);
+      - na zvednutém předloktí je váha končetiny > 0,9 a |osa x| > 0,8, na trupu < 0,05;
+      - hustota pásu u okraje (≤ 4 body) je ≥ 0,7× hustoty jádra (≥ 8 bodů).
+      - Svislý střed a rozptyl jádra byly zamítnuty: při slití visících paží s trupem skákaly o 2,8 bodu za snímek.
+    - Renderer:
+      - pásma 1,5 / 2,4 / 3,5 px a alfa 0,35 / 0,55 / 0,95;
+      - po jednom kroku 16 ms se blízkost změní přesně o `1 − 0,8^(16/16,7)`;
+      - s pevným rozsahem hloubky se blízkost nemění se změnou extrémů snímku;
+      - svislá řada cílů s váhou končetiny 1 má rozptyl až ±3,6 px (sm. odchylka > 1,4 px), s váhou 0 ≤ 0,65 px, s prostorem 2 px ≤ 1,65 px;
+      - po zastavení cíle nenastane žádný obrat pohybu a částice nepřejde cíl;
+      - změna rychlosti mezi tiky ≤ 2 px·tik + 0,1.
+    - Simulace:
+      - předpočet 2,5 s, rozsah hloubky 859,4–899,3;
+      - vykreslení medián 3,5 ms, p95 4,0 ms (T-021: 8,1–8,5 / 9,4–11,0 ms; méně dálkového párování);
+      - největší výchylka hvězdy pozadí 57,2 px;
+      - alfa vnitřního hrudníku (|x − střed| < 22 px, y 345–400 px) se mění o ≤ 0,004 za snímek; přítomnost se tam mění v mediánu o 0 a nejvýše u 1 částice za snímek;
+      - na celém hrudníku (±40 px) změní alfa·přítomnost za snímek v mediánu o 0,005, maximum 0,049.
+      - Před úpravou párování měnily přítomnost v hrudníku 2–7 částic za snímek: přelétaly na cíle vzdálené 30–56 px.
+      - Šířka levé paže nad hlavou v řádcích po 8 px: min 14,4 px, medián 20,4 px.
+      - Náhledy `T-022-a-1500.png` až `T-022-d-9008.png` a `T-022-sheet.png` (session artefakty) ukazují plné zvednuté paže, rovnoměrnou výplň a tlumenější boky.
+    - V CPythonu 3.13.17 s Pygame 2.6.1:
+      - `pytest -q` → `378 passed in 77.80s`;
+      - `ruff check src tests` → `All checks passed!`;
+      - `git diff --check` bez chyb.
+    - Smoke `runHuman.ps1` s SDL dummy:
+      - zastaralé CSV detekováno a přegenerováno (240 snímků, 608 238 502 B, SHA-256 `9CF201211C2F4FDBA4E495EC68C94900C82572B53E790F0D31A086A89FE08148`);
+      - demo běželo s ~2,4 GB paměti do ručního ukončení po ~120 s.
+    - Smoke `runObject.ps1` s SDL dummy: demo naběhlo a běželo do ručního ukončení.
+    - Ověřena pracovní kopie nad HEAD `492c9f8` včetně necommitnutých T-020 a T-021; otisky jsou v [DEC-023](DECISIONS.md#dec-023).
+  - Neověřeno: nativní okno, skutečná kamera a produktová akceptace.
+- Stav: dokonceno
+- Poznámky: Simulační skript `simulate_t022.py` je session artefakt, ne součást repozitáře.

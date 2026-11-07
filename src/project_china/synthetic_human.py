@@ -66,7 +66,12 @@ BREATH_AMPLITUDE = 0.025
 # Wrists and palms are held in front of the arm plane (metres towards the
 # camera), so palms are among the closest points like the middle of the chest.
 WRIST_FORWARD = 0.040
-PALM_FORWARD = 0.075
+PALM_FORWARD = 0.070
+# Arm capsule radii (metres). One screen pixel of the demo is about 4.24 mm,
+# so the forearm is at least 14 px and the wrist at least 10 px in radius and
+# a raised arm keeps a full cross-section instead of collapsing into a line.
+UPPER_ARM_RADII: _Radii = (0.072, 0.064)
+FOREARM_RADII: _Radii = (0.062, 0.044)
 _UPPER_ARM_LENGTH = 0.300
 _FOREARM_LENGTH = 0.255
 
@@ -321,14 +326,14 @@ def _arm(
     trapezius_end = (shoulder[0] - side * 0.025, shoulder[1] + 0.025, 0.000)
     girdle_start = (torso_x + side * 0.060, _SHOULDER_HEIGHT - 0.020 + girdle_lift, 0.000)
     body.add(_capsule(x, y, neck_base, trapezius_end, 0.036, 0.032))
-    body.add(_capsule(x, y, girdle_start, shoulder, 0.060, 0.052))
-    body.add(_ellipsoid(x, y, shoulder, (0.058, 0.062)))
-    body.add(_capsule(x, y, shoulder, elbow, 0.052, 0.039))
-    body.add(_capsule(x, y, elbow, wrist, 0.041, 0.027))
+    body.add(_capsule(x, y, girdle_start, shoulder, 0.062, 0.060))
+    body.add(_ellipsoid(x, y, shoulder, (0.072, 0.074)))
+    body.add(_capsule(x, y, shoulder, elbow, *UPPER_ARM_RADII))
+    body.add(_capsule(x, y, elbow, wrist, *FOREARM_RADII))
 
     direction = joints.forearm_direction
     angle = math.atan2(direction[1], direction[0]) - math.pi / 2
-    body.add(_ellipsoid(x, y, joints.palm, (0.044, 0.092), angle))
+    body.add(_ellipsoid(x, y, joints.palm, (0.050, 0.096), angle))
 
 
 def human_frame(frame_index: int) -> DepthFrame:

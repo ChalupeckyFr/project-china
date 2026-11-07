@@ -8,7 +8,7 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 - Fáze: `akceptace-prirustku`
 - Od: 2026-11-06
-- Poslední změna fáze: hloubkové stínování, dvousegmentové paže, dýchání a víření hvězd T-021 jsou technicky ověřeny
+- Poslední změna fáze: plné paže, stabilní jas hrudníku, rovnoměrná hustota a tlumení v úvratích T-022 jsou technicky ověřeny
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-Člověk může spustit `runHuman.ps1` (CSV je už přegenerované na 12 s smyčku; po změně generátoru se přegeneruje samo) a posoudit prostorové stínování, pohyb paží, dýchání a víření hvězd (T-021).
+Člověk může spustit `runHuman.ps1` (CSV je už přegenerované; po změně generátoru se přegeneruje samo) a posoudit plnost zvednutých paží, klid jasu na hrudníku, rovnoměrnost výplně a zastavení v úvratích (T-022).
 
 ## Bod pokračování
 
 - Aktivní úkol: žádný
-- Poslední dokončená činnost: hloubkové stínování, dvousegmentové paže, dýchání a víření hvězd podle T-021 (předtím T-020, necommitnuto; T-019 commit `492c9f8`)
-- Neověřené změny ve worktree: necommitnuté T-020 a T-021 (CSV přegenerováno, neverzované); lidské posouzení nového vzhledu; nativní okno, skutečná kamera a produkční zařízení nebyly ověřeny
-- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-021
+- Poslední dokončená činnost: plné paže, stabilní jas, rovnoměrná hustota a omezení zrychlení podle T-022 (předtím T-021 a T-020, necommitnuto; T-019 commit `492c9f8`)
+- Neověřené změny ve worktree: necommitnuté T-020, T-021 a T-022 (CSV přegenerováno, neverzované); lidské posouzení nového vzhledu; nativní okno, skutečná kamera a produkční zařízení nebyly ověřeny
+- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-022
 
 ## Otevřené otázky
 

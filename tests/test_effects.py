@@ -1,3 +1,4 @@
+import itertools
 import math
 
 import numpy as np
@@ -8,6 +9,8 @@ from project_china.effects import (
     DEPTH_ALPHA,
     DEPTH_RADIUS,
     JITTER_RANGE,
+    LIMB_SCATTER,
+    MAX_TICK_ACCELERATION,
     MAX_TICK_DISTANCE,
     REPULSION_RADIUS,
     STAR_DAMPING,
@@ -198,10 +201,10 @@ def test_near_particles_are_larger_and_brighter_than_far_ones() -> None:
     (near_x, near_y), (far_x, far_y) = effect.particle_positions
     near_sum, near_peak, near_area, near_rgb = glow(near_x, near_y)
     far_sum, far_peak, far_area, far_rgb = glow(far_x, far_y)
-    # Near: alpha 0.9-1.0 (minus twinkle); far: alpha 0.15-0.30.
+    # Near: alpha 0.95 (minus twinkle); far: alpha 0.35.
     assert near_peak >= 0.9 * 0.85 * 255
-    assert far_peak <= 0.30 * 255
-    # Near disc radius 3.5-4.5 px covers many pixels, far 1.2-1.8 px a few.
+    assert far_peak <= 0.35 * 255
+    # Near disc radius 3.5 px covers many pixels, far 1.5 px a few.
     assert near_area >= 3 * far_area
     assert near_sum > 8 * far_sum
     # Near particles are warmer (red over blue), far ones cold.
@@ -211,9 +214,39 @@ def test_near_particles_are_larger_and_brighter_than_far_ones() -> None:
 
 def test_depth_shading_ranges_follow_the_brief() -> None:
     far, middle, near = zip(DEPTH_RADIUS, DEPTH_ALPHA, strict=True)
-    assert 1.2 <= far[0] <= 1.8 and 0.15 <= far[1] <= 0.30
+    assert far == (1.5, 0.35)
     assert 2.0 <= middle[0] <= 2.8 and 0.45 <= middle[1] <= 0.65
-    assert 3.5 <= near[0] <= 4.5 and 0.9 <= near[1] <= 1.0
+    assert near == (3.5, 0.95)
+
+
+def test_shading_follows_depth_changes_with_an_exponential_filter() -> None:
+    effect = StarEffect((320, 240), 1)
+    _settle(effect, BodyTargets(np.array(((160.0, 120.0),)), np.array((1000.0,)),
+                                depth_range=(800.0, 1000.0)))
+    assert effect.particle_nearness[0] == pytest.approx(0, abs=1e-6)
+
+    near = BodyTargets(np.array(((160.0, 120.0),)), np.array((800.0,)),
+                       depth_range=(800.0, 1000.0))
+    tick = 1000 / 60
+    effect.update(round(tick), near)
+    # value = previous * 0.8 + target * 0.2 per reference tick.
+    assert effect.particle_nearness[0] == pytest.approx(1 - 0.8 ** (round(tick) / tick))
+    assert effect._radius[0] == pytest.approx(
+        DEPTH_RADIUS[0] + (DEPTH_RADIUS[2] - DEPTH_RADIUS[0]) * (1 - 0.8 ** (round(tick) / tick))
+    )
+    _settle(effect, near, 60)
+    assert effect.particle_nearness[0] == pytest.approx(1, abs=1e-3)
+    assert effect._depth_alpha[0] == pytest.approx(DEPTH_ALPHA[2], abs=1e-3)
+
+
+def test_fixed_depth_range_keeps_shading_when_frame_extremes_change() -> None:
+    effect = StarEffect((320, 240), 2)
+    points = np.array(((100.0, 120.0), (220.0, 120.0)))
+    for depths in ((850.0, 950.0), (900.0, 950.0), (850.0, 990.0)):
+        _settle(effect, BodyTargets(points, np.array(depths), depth_range=(800.0, 1000.0)), 120)
+        np.testing.assert_allclose(
+            effect.particle_nearness, (1000 - np.array(depths)) / 200, atol=1e-3
+        )
 
 
 def _volume_body(points, ids=None) -> BodyTargets:
@@ -310,6 +343,85 @@ def test_particles_never_move_more_than_the_tick_limit() -> None:
 
     assert max(steps) <= MAX_TICK_DISTANCE * 16 / (1000 / 60) + 1e-9
     assert max(steps) > 0.9 * MAX_TICK_DISTANCE * 16 / (1000 / 60)
+
+def _limb_body(limb: float, room: float) -> BodyTargets:
+    rows = np.arange(60.0, 180.0, 0.5)
+    points = np.column_stack((np.full(len(rows), 160.0), rows))
+    return BodyTargets(
+        np.array(((20.0, 20.0),)),
+        None,
+        points,
+        None,
+        np.arange(len(rows)),
+        np.tile((1.0, 0.0), (len(rows), 1)),
+        np.full(len(rows), limb),
+        np.full(len(rows), room),
+    )
+
+
+def test_limb_particles_spread_across_the_bone_instead_of_one_line() -> None:
+    effect = StarEffect((320, 240), 1, 240)
+    _settle(effect, _limb_body(1.0, 12.0), 300)
+    across = np.array(effect.particle_positions[1:])[:, 0] - 160
+    # A vertical arm keeps its width: scatter of +-3 px across the bone.
+    assert np.abs(across).max() <= LIMB_SCATTER + VOLUME_JITTER_RANGE[1] + 0.05
+    assert np.abs(across).max() >= 2.5
+    assert across.std() > 1.4
+    assert (np.abs(across) > 2).mean() > 0.2
+
+    torso = StarEffect((320, 240), 1, 240)
+    _settle(torso, _limb_body(0.0, 12.0), 300)
+    assert np.abs(np.array(torso.particle_positions[1:])[:, 0] - 160).max() <= (
+        VOLUME_JITTER_RANGE[1] + 0.05
+    )
+
+
+def test_limb_scatter_never_leaves_the_silhouette() -> None:
+    effect = StarEffect((320, 240), 1, 240)
+    _settle(effect, _limb_body(1.0, 2.0), 300)
+    across = np.array(effect.particle_positions[1:])[:, 0] - 160
+    assert np.abs(across).max() <= 1.0 + VOLUME_JITTER_RANGE[1] + 0.05
+
+
+def test_particles_stop_at_a_turning_point_without_oscillation() -> None:
+    effect = StarEffect((320, 240), 1)
+    _settle(effect, ((40, 120),))
+
+    for tick in range(40):
+        effect.update(16, ((40 + 6 * (tick + 1), 120),))
+    track: list[float] = []
+    previous = effect.particle_positions[0][0]
+    steps: list[float] = []
+    for _ in range(120):
+        effect.update(16, ((280, 120),))
+        x = effect.particle_positions[0][0]
+        track.append(x)
+        steps.append(x - previous)
+        previous = x
+
+    # Never past the stopped target and no back-and-forth swinging.
+    assert max(track) <= 280 + JITTER_RANGE[1]
+    assert abs(track[-1] - 280) <= JITTER_RANGE[1] + 0.1
+    reversals = sum(
+        1 for a, b in itertools.pairwise(steps) if a > 0.3 and b < -0.3
+    )
+    assert reversals == 0
+
+
+def test_velocity_changes_at_most_by_the_acceleration_limit() -> None:
+    effect = StarEffect((320, 240), 1)
+    _settle(effect, ((40, 120),))
+    previous = np.array(effect.particle_positions[0])
+    velocity = np.zeros(2)
+    ticks = 16 / (1000 / 60)
+    for _ in range(60):
+        effect.update(16, ((280, 120),))
+        current = np.array(effect.particle_positions[0])
+        step = (current - previous) / ticks
+        # Jitter orbits slowly, which adds a fraction of a pixel per tick.
+        assert np.hypot(*(step - velocity)) <= MAX_TICK_ACCELERATION * ticks + 0.1
+        velocity, previous = step, current
+
 
 @pytest.mark.parametrize("count", (-1, -10))
 def test_volume_count_must_not_be_negative(count: int) -> None:
