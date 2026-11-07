@@ -10,12 +10,19 @@ from project_china.synthetic_human import (
     _PIXEL_SIZE,
     _VIEW_TOP,
     _VIEW_WIDTH,
+    ARM_CYCLE_FRAMES,
+    BREATH_AMPLITUDE,
+    BREATH_PERIOD_FRAMES,
+    CHEST_LIFT,
+    FOREARM_PHASE_LAG,
     FRAME_COUNT,
+    FRAME_INTERVAL_MS,
     HEAD_WIDTH,
     HEIGHT,
     SHOULDER_WIDTH,
     TORSO_HEIGHT,
     WIDTH,
+    _arm_joints,
     _capsule,
     _smin,
     human_frame,
@@ -75,7 +82,7 @@ def test_human_raises_hands_above_head_and_returns_smoothly() -> None:
         lowered.any(axis=1)
     )[0]
 
-    for first, second in ((0, 1), (29, 30), (59, 60), (119, 0)):
+    for first, second in ((0, 1), (29, 30), (59, 60), (119, 120), (239, 0)):
         first_mask = select_depth_regions(human_frame(first)).mask != 0
         second_mask = select_depth_regions(human_frame(second)).mask != 0
         first_distance = cv2.distanceTransform(
@@ -172,7 +179,7 @@ def test_depth_falls_off_smoothly_from_segment_centres() -> None:
     assert max(horizontal.max(), vertical.max()) < 8
 
 
-@pytest.mark.parametrize("frame_index", (0, 30, 60, 90, 119))
+@pytest.mark.parametrize("frame_index", (0, 30, 60, 90, 119, 150, 239))
 def test_depth_has_no_seams_between_body_segments(frame_index: int) -> None:
     depths = np.asarray(human_frame(frame_index).depths, dtype=np.float64)
     inner = cv2.erode(_mask(frame_index).astype(np.uint8), np.ones((7, 7), np.uint8)) != 0
@@ -195,6 +202,9 @@ def test_arm_motion_eases_in_and_out() -> None:
     steps = np.abs(np.diff(raised + raised[:1]))
 
     assert raised[0] == 0 and raised[60] == 1
+    # Two identical 6 s arm cycles per loop.
+    assert raised[:ARM_CYCLE_FRAMES] == raised[ARM_CYCLE_FRAMES:]
+    assert ARM_CYCLE_FRAMES * FRAME_INTERVAL_MS == 6000
     assert steps[0] < steps[29] / 10
     assert steps[59] < steps[29] / 10
     assert steps.max() <= steps[29] + 1e-12
@@ -205,23 +215,80 @@ def test_shoulder_rises_and_moves_inward_only_above_horizontal() -> None:
         pose = human_pose(index)
         if pose.upper_arm_angle <= 90:
             assert pose.shoulder_lift == 0 and pose.shoulder_inset == 0
-        assert 10 <= pose.elbow_flex <= 20
+            assert pose.chest_lift == 0
 
     top = human_pose(60)
     assert 0.05 <= top.shoulder_lift / TORSO_HEIGHT <= 0.08
     assert top.shoulder_inset > 0
-    assert max(human_pose(index).elbow_flex for index in range(FRAME_COUNT)) > 19
+    # Sternum and girdle rise about 3-5 screen pixels (1.75 px per grid px).
+    assert 3 <= top.chest_lift / _PIXEL_SIZE * 1.75 <= 5
+    assert top.chest_lift == CHEST_LIFT
+
+
+def test_forearm_trails_the_upper_arm_and_elbow_bends_while_raising() -> None:
+    poses = [human_pose(index) for index in range(FRAME_COUNT)]
+    upper = np.array([pose.upper_arm_angle for pose in poses])
+    forearm = np.array([pose.forearm_angle for pose in poses])
+    flex = np.array([pose.elbow_flex for pose in poses])
+
+    assert 0.15 <= FOREARM_PHASE_LAG <= 0.20
+    # Phase of the fundamental: the forearm lags by the configured shift.
+    cycle = np.exp(-2j * np.pi * np.arange(FRAME_COUNT) / ARM_CYCLE_FRAMES)
+    lag = np.angle(np.sum(upper * cycle) / np.sum(forearm * cycle))
+    assert lag == pytest.approx(FOREARM_PHASE_LAG, abs=1e-6)
+    # Raising: the elbow bends 15-20 degrees; never a rigid straight board.
+    assert 15 <= flex[:60].max() <= 20
+    assert np.abs(flex).max() <= 20
+    np.testing.assert_allclose(flex, upper - forearm)
 
 
 def test_chest_breathes_and_weight_shifts_in_a_closed_loop() -> None:
     poses = [human_pose(index) for index in range(FRAME_COUNT)]
     chest = [pose.chest_scale for pose in poses]
     sway = [pose.sway for pose in poses]
+    breath = [pose.breath_lift for pose in poses]
 
-    assert max(chest) - min(chest) > 0.015
+    # Breathing amplitude is 2-3 % of the torso width, in chest and shoulders.
+    assert 0.02 <= BREATH_AMPLITUDE <= 0.03
+    assert max(chest) - min(chest) > 2 * BREATH_AMPLITUDE
+    assert max(breath) - min(breath) == pytest.approx(
+        BREATH_AMPLITUDE * SHOULDER_WIDTH, rel=0.01
+    )
     assert max(sway) > 0.005 and min(sway) < -0.005
     assert abs(chest[-1] - chest[0]) < 0.003
     assert abs(sway[-1] - sway[0]) < 0.001
+
+
+def test_breathing_cycle_lasts_about_four_seconds_and_closes_the_loop() -> None:
+    breath = np.array([human_pose(index).breath_lift for index in range(FRAME_COUNT)])
+    period_ms = BREATH_PERIOD_FRAMES * FRAME_INTERVAL_MS
+
+    assert 3500 <= period_ms <= 4500
+    assert FRAME_COUNT % BREATH_PERIOD_FRAMES == 0
+    assert FRAME_COUNT % ARM_CYCLE_FRAMES == 0
+    np.testing.assert_allclose(
+        breath[BREATH_PERIOD_FRAMES:], breath[:-BREATH_PERIOD_FRAMES], atol=1e-12
+    )
+    # Exactly one inhale per period: the dominant frequency is the breath.
+    spectrum = np.abs(np.fft.rfft(breath - breath.mean()))
+    assert int(np.argmax(spectrum)) == FRAME_COUNT // BREATH_PERIOD_FRAMES
+
+
+@pytest.mark.parametrize("frame_index", (0, 15, 30, 45, 60, 90))
+def test_palms_are_among_the_closest_points_like_the_chest(frame_index: int) -> None:
+    depths = np.asarray(human_frame(frame_index).depths)
+    body = depths[_mask(frame_index)]
+    nearest, farthest = body.min(), body.max()
+    pose = human_pose(frame_index)
+
+    def nearness(x: float, y: float) -> float:
+        return (farthest - depths[_row(y), _column(x)]) / (farthest - nearest)
+
+    for side in (-1, 1):
+        palm = _arm_joints(pose, side, 0.6 * pose.sway).palm
+        assert nearness(palm[0], palm[1]) >= 0.8
+    chest = depths[_row(0.42) : _row(0.28), _column(-0.05) : _column(0.05)]
+    assert (farthest - chest.min()) / (farthest - nearest) >= 0.9
 
 
 def test_smooth_minimum_blends_only_close_shapes() -> None:

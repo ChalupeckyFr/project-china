@@ -14,8 +14,12 @@ from project_china.frames import DepthFrame
 
 WIDTH = 256
 HEIGHT = 384
-FRAME_COUNT = 120
 FRAME_INTERVAL_MS = 50
+# The arms repeat every 6 s and breathing every 4 s; the 12 s loop holds two
+# arm cycles and three breaths, so both close seamlessly.
+ARM_CYCLE_FRAMES = 120
+BREATH_PERIOD_FRAMES = 80
+FRAME_COUNT = 240
 _VIEW_WIDTH = 1.90
 _PIXEL_SIZE = _VIEW_WIDTH / WIDTH
 _VIEW_TOP = 1.82
@@ -49,6 +53,20 @@ REST_ARM_ANGLE = 8.0
 RAISED_ARM_ANGLE = 158.0
 SHOULDER_LIFT = 0.065 * TORSO_HEIGHT
 SHOULDER_INSET = 0.020
+# The forearm follows the upper arm with this phase lag of the motion cycle
+# (radians), so the arm swings as two segments instead of one rigid board.
+FOREARM_PHASE_LAG = 0.175
+# Constant elbow bend towards the side the forearm trails while raising.
+ELBOW_REST_FLEX = 4.0
+# Sternum and shoulder girdle rise with arms above horizontal (~2.4 grid px).
+CHEST_LIFT = 0.018
+# Breathing changes chest width and shoulder height by this share of the
+# torso width.
+BREATH_AMPLITUDE = 0.025
+# Wrists and palms are held in front of the arm plane (metres towards the
+# camera), so palms are among the closest points like the middle of the chest.
+WRIST_FORWARD = 0.040
+PALM_FORWARD = 0.075
 _UPPER_ARM_LENGTH = 0.300
 _FOREARM_LENGTH = 0.255
 
@@ -59,9 +77,12 @@ class HumanPose:
 
     raised: float
     upper_arm_angle: float
+    forearm_angle: float
     elbow_flex: float
     shoulder_lift: float
     shoulder_inset: float
+    chest_lift: float
+    breath_lift: float
     chest_scale: float
     sway: float
 
@@ -80,19 +101,27 @@ def human_pose(frame_index: int) -> HumanPose:
     if not 0 <= frame_index < FRAME_COUNT:
         raise ValueError(f"Frame index must be between 0 and {FRAME_COUNT - 1}.")
 
-    phase = frame_index / FRAME_COUNT
+    phase = (frame_index % ARM_CYCLE_FRAMES) / ARM_CYCLE_FRAMES
     progress = 1 - abs(2 * phase - 1)
     raised = _ease_in_out_sine(progress)
-    upper_arm_angle = REST_ARM_ANGLE + (RAISED_ARM_ANGLE - REST_ARM_ANGLE) * raised
+    span = RAISED_ARM_ANGLE - REST_ARM_ANGLE
+    upper_arm_angle = REST_ARM_ANGLE + span * raised
+    # sin^2 of the triangle wave equals (1 - cos(tau * phase)) / 2, so the
+    # lag is a true phase shift of the cycle; the forearm trails the swing.
+    forearm_raised = (1 - math.cos(math.tau * phase - FOREARM_PHASE_LAG)) / 2
+    forearm_angle = REST_ARM_ANGLE + span * forearm_raised - ELBOW_REST_FLEX
     elevation = _smoothstep((upper_arm_angle - 90) / (RAISED_ARM_ANGLE - 90))
-    breathing = math.sin(2 * math.tau * phase)
+    breathing = math.sin(math.tau * frame_index / BREATH_PERIOD_FRAMES)
     return HumanPose(
         raised=raised,
         upper_arm_angle=upper_arm_angle,
-        elbow_flex=10 + 10 * math.sin(math.pi * raised),
+        forearm_angle=forearm_angle,
+        elbow_flex=upper_arm_angle - forearm_angle,
         shoulder_lift=SHOULDER_LIFT * elevation,
         shoulder_inset=SHOULDER_INSET * elevation,
-        chest_scale=1 + 0.012 * breathing + 0.015 * raised,
+        chest_lift=CHEST_LIFT * elevation,
+        breath_lift=BREATH_AMPLITUDE * SHOULDER_WIDTH * 0.5 * (1 + breathing),
+        chest_scale=1 + BREATH_AMPLITUDE * breathing + 0.015 * raised,
         sway=0.008 * math.sin(math.tau * phase),
     )
 
@@ -249,6 +278,34 @@ def _extend(
     )
 
 
+@dataclass(frozen=True)
+class _ArmJoints:
+    shoulder: _Point
+    elbow: _Point
+    wrist: _Point
+    palm: _Point
+    forearm_direction: tuple[float, float]
+
+
+def _arm_joints(pose: HumanPose, side: int, torso_x: float) -> _ArmJoints:
+    shoulder = (
+        torso_x + side * (SHOULDER_WIDTH / 2 - pose.shoulder_inset),
+        _SHOULDER_HEIGHT + pose.shoulder_lift + pose.breath_lift,
+        -0.005,
+    )
+    upper_angle = math.radians(pose.upper_arm_angle)
+    forearm_angle = math.radians(pose.forearm_angle)
+    upper_direction = (side * math.sin(upper_angle), -math.cos(upper_angle))
+    forearm_direction = (side * math.sin(forearm_angle), -math.cos(forearm_angle))
+    lift = math.sin(math.pi * pose.raised)
+    elbow = _extend(shoulder, upper_direction, _UPPER_ARM_LENGTH, -0.030 * lift)
+    wrist = _extend(
+        elbow, forearm_direction, _FOREARM_LENGTH, -0.015 * pose.raised - WRIST_FORWARD
+    )
+    palm = _extend(wrist, forearm_direction, 0.085, WRIST_FORWARD - PALM_FORWARD)
+    return _ArmJoints(shoulder, elbow, wrist, palm, forearm_direction)
+
+
 def _arm(
     body: _Body,
     x: _FloatMap,
@@ -257,31 +314,21 @@ def _arm(
     side: int,
     torso_x: float,
 ) -> None:
-    shoulder = (
-        torso_x + side * (SHOULDER_WIDTH / 2 - pose.shoulder_inset),
-        _SHOULDER_HEIGHT + pose.shoulder_lift,
-        -0.005,
-    )
-    upper_angle = math.radians(pose.upper_arm_angle)
-    forearm_angle = upper_angle + math.radians(pose.elbow_flex)
-    upper_direction = (side * math.sin(upper_angle), -math.cos(upper_angle))
-    forearm_direction = (side * math.sin(forearm_angle), -math.cos(forearm_angle))
-    lift = math.sin(math.pi * pose.raised)
-    elbow = _extend(shoulder, upper_direction, _UPPER_ARM_LENGTH, -0.030 * lift)
-    wrist = _extend(elbow, forearm_direction, _FOREARM_LENGTH, -0.015 * pose.raised)
-
-    neck_base = (torso_x + side * 0.035, 0.565, 0.005)
+    joints = _arm_joints(pose, side, torso_x)
+    shoulder, elbow, wrist = joints.shoulder, joints.elbow, joints.wrist
+    girdle_lift = pose.chest_lift + pose.breath_lift
+    neck_base = (torso_x + side * 0.035, 0.565 + 0.5 * girdle_lift, 0.005)
     trapezius_end = (shoulder[0] - side * 0.025, shoulder[1] + 0.025, 0.000)
-    girdle_start = (torso_x + side * 0.060, _SHOULDER_HEIGHT - 0.020, 0.000)
+    girdle_start = (torso_x + side * 0.060, _SHOULDER_HEIGHT - 0.020 + girdle_lift, 0.000)
     body.add(_capsule(x, y, neck_base, trapezius_end, 0.036, 0.032))
     body.add(_capsule(x, y, girdle_start, shoulder, 0.060, 0.052))
     body.add(_ellipsoid(x, y, shoulder, (0.058, 0.062)))
     body.add(_capsule(x, y, shoulder, elbow, 0.052, 0.039))
     body.add(_capsule(x, y, elbow, wrist, 0.041, 0.027))
 
-    palm = _extend(wrist, forearm_direction, 0.085, -0.004)
-    angle = math.atan2(forearm_direction[1], forearm_direction[0]) - math.pi / 2
-    body.add(_ellipsoid(x, y, palm, (0.044, 0.092), angle))
+    direction = joints.forearm_direction
+    angle = math.atan2(direction[1], direction[0]) - math.pi / 2
+    body.add(_ellipsoid(x, y, joints.palm, (0.044, 0.092), angle))
 
 
 def human_frame(frame_index: int) -> DepthFrame:
@@ -300,7 +347,7 @@ def human_frame(frame_index: int) -> DepthFrame:
         _ellipsoid(
             x,
             y,
-            (torso_x, 0.310, 0.005),
+            (torso_x, 0.310 + pose.chest_lift, 0.005),
             (0.180 * pose.chest_scale, 0.220),
         )
     )

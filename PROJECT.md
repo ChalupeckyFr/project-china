@@ -8,7 +8,7 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 - Fáze: `akceptace-prirustku`
 - Od: 2026-11-06
-- Poslední změna fáze: stabilní cíle objemu, pružina bez přestřelu a výplň bez děr T-019 jsou technicky ověřeny
+- Poslední změna fáze: hloubkové stínování, dvousegmentové paže, dýchání a víření hvězd T-021 jsou technicky ověřeny
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-Člověk může spustit `runHuman.ps1` a posoudit plynulejší pohyb objemu, výplň bez děr a pružinu bez přestřelu (T-019).
+Člověk může spustit `runHuman.ps1` (CSV je už přegenerované na 12 s smyčku; po změně generátoru se přegeneruje samo) a posoudit prostorové stínování, pohyb paží, dýchání a víření hvězd (T-021).
 
 ## Bod pokračování
 
 - Aktivní úkol: žádný
-- Poslední dokončená činnost: oprava skoků cílů, přestřelu, děr a plató hloubky podle T-019 (předtím T-018, commit `b48774e`)
-- Neověřené změny ve worktree: necommitnutá T-019; lidské posouzení nového vzhledu; nativní okno, skutečná kamera a produkční zařízení nebyly ověřeny
-- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-019
+- Poslední dokončená činnost: hloubkové stínování, dvousegmentové paže, dýchání a víření hvězd podle T-021 (předtím T-020, necommitnuto; T-019 commit `492c9f8`)
+- Neověřené změny ve worktree: necommitnuté T-020 a T-021 (CSV přegenerováno, neverzované); lidské posouzení nového vzhledu; nativní okno, skutečná kamera a produkční zařízení nebyly ověřeny
+- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-021
 
 ## Otevřené otázky
 

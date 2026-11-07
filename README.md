@@ -93,8 +93,10 @@ finally {
 ```
 
 Totéž z kořene repozitáře spustí `.\runObject.ps1`. Skript `.\runHuman.ps1`
-spustí detailního člověka; pokud `examples/human_motion.csv` neexistuje,
-nejprve ho vygeneruje, jinak použije existující soubor. Pro člověka spouští
+spustí detailního člověka; pokud `examples/human_motion.csv` neexistuje nebo
+je starší než generátor `src/project_china/synthetic_human.py`, nejprve ho
+(pře)generuje do dočasného `human_motion.csv.new` a ten pak přesune na místo
+CSV, jinak použije existující soubor. Pro člověka spouští
 demo s 360 hvězdami na obrysu místo výchozích 72 a s 1 500 hvězdami
 vyplňujícími objem těla; počty lze při ručním spuštění zadat parametry
 `--particles` a `--volume-particles` (výchozí 0, tj. jen obrys). Při omezující
@@ -110,16 +112,18 @@ zobrazený.
 
 ### Detailní syntetický člověk
 
-`examples/human_motion.csv` obsahuje 120 snímků 256×384 po 50 ms:
-98 304 bodů na snímek a celkem 11 796 480 datových řádků. Samotné postavě
+`examples/human_motion.csv` obsahuje 240 snímků 256×384 po 50 ms:
+98 304 bodů na snímek a celkem 23 592 960 datových řádků. Samotné postavě
 patří přes 10 000 bodů v každém snímku; ostatní body tvoří pozadí. Člověk
-během šestisekundové smyčky plynule zvedá a spouští obě ruce.
+během dvanáctisekundové smyčky dvakrát plynule zvedne a spustí obě ruce
+(cyklus paží 6 s) a třikrát se nadechne (perioda dechu 4 s).
 
 Jde o procedurální čelní ortografický model, nikoli skutečný sken. Tělo je
 složené ze vzdálenostních polí (SDF): trup tvoří hrudník, pas široký asi 75 %
 šířky ramen a pánev, končetiny jsou zužované kapsle (rameno → loket → zápěstí,
 stehno → koleno → kotník) a dlaně jsou zploštělé elipsoidy natočené podle
-předloktí. Hlava je hladký elipsoid bez uší, krk má asi 46 % šířky hlavy.
+předloktí a předsunuté asi o 7,5 cm ke kameře, takže patří spolu se středem
+hrudníku k nejbližším bodům. Hlava je hladký elipsoid bez uší, krk má asi 46 % šířky hlavy.
 Spoje trupu, krku, ramen a končetin jsou slité polynomiálním smooth minimum
 (`SMIN_K = 0.15` v jednotkách šířky hlavy, tj. asi 2,5 cm), takže v podpaží
 ani u krku nevznikají ostré zářezy. Hloubka (2.5D) se nepočítá po segmentech:
@@ -132,9 +136,14 @@ jsou jemný reliéf obličeje. Hloubky se ukládají na tři desetinná místa
 
 Paže se pohybují s easingem `sin²`, takže v dolní a horní úvrati zpomalí.
 Nad horizontálou se ramenní kloub zvedá až o 6,5 % výšky trupu a mírně
-přisouvá ke krku, loket se ohýbá o 10–20° podle fáze pohybu a hrudník jemně
-dýchá spolu s přenosem váhy v kyčlích. Anatomická přesnost vůči skutečnému
-člověku nebyla změřena; parametry popisuje [DEC-017](DECISIONS.md#dec-017).
+přisouvá ke krku. Paže má dva segmenty: předloktí za nadloktím zaostává
+o fázi 0,175 rad, takže se loket při zvedání pokrčí až o 17° a při spouštění
+se mírně ohne na druhou stranu. Hrudník dýchá s periodou 4 s (amplituda 2,5 %
+šířky trupu v šířce hrudníku i výšce ramen) a nad horizontálou
+se hrudní kost s ramenním pletencem zvedne asi o 4 px obrazovky; kyčle jemně
+přenášejí váhu. Anatomická přesnost vůči skutečnému člověku nebyla změřena;
+parametry popisují [DEC-017](DECISIONS.md#dec-017) a
+[DEC-022](DECISIONS.md#dec-022).
 
 Spuštění:
 
@@ -160,7 +169,7 @@ finally {
 }
 ```
 
-Generátor odmítne přepsat existující soubor. CSV má přibližně 296 MB;
+Generátor odmítne přepsat existující soubor. CSV má přibližně 608 MB (generování asi 32 s, načtení asi 22 s);
 načítání potřebuje řádově gigabajty paměti a více času než původní příklad.
 Naměřené nároky jsou v [T-013](TASKS.md#t-013).
 U člověka tvoří obrys 360 hvězd a objem těla dalších 1 500 hvězd
@@ -191,7 +200,7 @@ Obrys se mezi snímky CSV plynule morfuje (modul `project_china.morph`):
 
 Obrysy a objemy klíčových snímků se počítají jen jednou a ukládají se do
 mezipaměti. Pokud demo kreslí objem, spočítá je při startu všechny (u člověka
-asi 1 s navíc), aby rozdělení objemových hvězd mezi paprsky bylo pevné.
+asi 1 s navíc), aby jedna pevná mřížka výplně platila pro celou sekvenci.
 Obrys postavy či objektu se nevykresluje čarou, jeho tvar
 naznačují hvězdy.
 Samostatné kolečko uprostřed cíle se nevykresluje.
@@ -201,30 +210,41 @@ Vykreslování (modul `project_china.effects`) dostává jen body na obrazovce
 a jejich hloubky; CSV ani matice nečte. Geometrii objemu počítá z hloubkové
 matice samostatný modul `project_china.volume`:
 
-- 2.5D objem: z každého bodu vnějšího obrysu vede paprsek dovnitř až
-  kousek za osu těla (hřeben vzdálenostní mapy, délka vyhlazená podél
-  obrysu). Objemové hvězdy na něm leží v náhodné spojité vzdálenosti od
-  okraje s hustotou `1 − 0,8 · vzdálenost`, takže vyplní celý vnitřek bez
-  děr a okraj je jen mírně (asi 1,15–1,35×) hustší. Počet hvězd na paprsek
-  je pevný pro celou sekvenci, takže si cíle mezi snímky nevyměňují místa
-  napříč tělem. Objem se morfuje mezi snímky stejně jako obrys. Obrysové
+- 2.5D objem: vnitřek vyplňuje jedna pevná šestiúhelníková mřížka s malým
+  stálým posunem bodů (do 0,5 bodu matice), takže hustota je homogenní bez
+  shluků a děr. Rozestup se při startu nastaví tak, aby nejplnější snímek
+  potřeboval nejvýše 97 % objemových hvězd. Cílem je každý bod mřížky
+  uvnitř siluety; mezi snímky se prolínají znaménkové vzdálenostní pole
+  celé binární siluety, takže tělo plynule roste a ubývá, body mřížky se
+  nehýbou a v podpaží ani v kloubech nevzniká vnitřní hrana. Obrysové
   hvězdy vznikají jen na vnější hranici celé siluety.
-- Hloubka: blízké hvězdy jsou o 40 % větší s alfou až 1,0, vzdálené menší
-  a tlumené (alfa od 0,30); hloubka se normalizuje min/max v rámci snímku.
-  Objemový dojem tedy vzniká velikostí a jasem, ne prázdnými místy.
-- Každá hvězda obrysu má k cíli malý posun 1,5–2,5 px, objemová 2–4 px;
-  posun pomalu obíhá, takže nevzniká rastr ani zdvojené čáry.
-- Hvězdy se k cíli táhnou kriticky tlumenou pružinou (rychlost 0,9 na
-  referenční krok 60 Hz, strop 40 px na krok), takže za rychlou paží
-  mírně zaostávají, ale nikdy cíl nepřestřelí. Náběh přitažlivosti trvá
+- Párování: každý bod mřížky má stálé ID. Hvězda si drží svůj cíl, dokud
+  jeho ID existuje; uvolněné hvězdy dostanou nejbližší volný cíl. Hvězdy
+  bez cíle zůstanou na místě a vyblednou (asi 120 ms); hvězda letící
+  k cíli vzdálenému víc než 8–20 px je tmavá, aby nebylo vidět přelétání
+  mimo tělo.
+- Hloubka: každá hvězda je měkký kotouč, jehož poloměr a alfa plynou po
+  částech lineárně z blízkosti (hloubka normalizovaná min/max v rámci
+  snímku): vzdálené okraje 1,5 px a alfa 0,22, střední 2,4 px a 0,55,
+  nejbližší (střed hrudníku, dlaně) 4,0 px a 0,95 s teplejším odstínem.
+  Objemový dojem tedy vzniká velikostí, jasem a barvou, ne prázdnými místy.
+- Každá hvězda obrysu má k cíli malý posun 1,5–2,5 px, objemová 0,3–0,6 px
+  (mřížka už je rozházená); posun pomalu obíhá, takže nevzniká rastr ani
+  zdvojené čáry.
+- Hvězdy se k cíli blíží přetlumeně: za každý referenční krok 60 Hz urazí
+  25 % zbývající vzdálenosti, nejvýše 10 px, takže za rychlou paží mírně
+  zaostávají, ale nikdy cíl nepřestřelí ani nevystřelí z těla. Náběh přitažlivosti trvá
   180 ms a uvolnění má časovou konstantu 700 ms.
-- Body obrysu rychlejší než 150 px/s odhrnou hvězdy pozadí do 28 px ve
-  směru pohybu s mírnou turbulencí; hvězdy se pak tlumeně vrátí na místo.
+- Body obrysu rychlejší než 150 px/s (paže, předloktí, dlaně) víří hvězdy
+  pozadí do 32 px: odpudivá složka kolmo na směr kosti, tečná ve směru
+  švihu a mírná turbulence napříč. Hvězdy si pak každý krok 60 Hz ponechají
+  92 % rychlosti a pružina je vrátí na místo.
 - Stav všech hvězd je v polích alokovaných jednou při startu.
 
 Parametry nemají nastavovací UI; popisují je
-[`DEC-018`](DECISIONS.md#dec-018), [`DEC-019`](DECISIONS.md#dec-019)
-a [`DEC-020`](DECISIONS.md#dec-020), původní přijaté hodnoty
+[`DEC-018`](DECISIONS.md#dec-018), [`DEC-019`](DECISIONS.md#dec-019),
+[`DEC-020`](DECISIONS.md#dec-020) a [`DEC-021`](DECISIONS.md#dec-021),
+původní přijaté hodnoty
 [`DEC-009`](DECISIONS.md#dec-009).
 
 ## Co tu (zatím) není

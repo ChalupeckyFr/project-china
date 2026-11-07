@@ -22,13 +22,14 @@ from project_china.morph import (
 )
 from project_china.selection import DepthSelection, select_depth_regions
 from project_china.volume import (
-    VolumePicks,
-    VolumeShape,
-    build_volumes,
-    morph_volumes,
-    reference_weights,
-    sample_volume,
-    volume_picks,
+    FillField,
+    FillLattice,
+    fill_field,
+    fill_targets,
+    filled_depth,
+    fit_lattice,
+    morph_outline_depths,
+    outline_depths,
 )
 
 _SCREEN_SIZE = (960, 720)
@@ -36,7 +37,10 @@ _BACKGROUND = (5, 8, 24)
 _GRID_MARGIN = 24
 MAX_TARGET_SPEED = 900.0
 
-_Keyframe = tuple[DepthSelection, tuple[ContourShape, ...], tuple[VolumeShape, ...]]
+_Values = NDArray[np.float64]
+_Keyframe = tuple[
+    DepthSelection, tuple[ContourShape, ...], tuple[_Values, ...], FillField | None
+]
 
 
 def _grid_transform(
@@ -70,23 +74,23 @@ def _to_screen(
     ) if len(grid_points) else np.empty((0, 2))
 
 
-def _pair_volumes(
+def _pair_depths(
     pairs: tuple[tuple[ContourShape | None, ContourShape | None], ...],
     current: tuple[ContourShape, ...],
-    current_volumes: tuple[VolumeShape, ...],
+    current_depths: tuple[_Values, ...],
     following: tuple[ContourShape, ...],
-    following_volumes: tuple[VolumeShape, ...],
-) -> tuple[tuple[VolumeShape | None, VolumeShape | None], ...]:
+    following_depths: tuple[_Values, ...],
+) -> tuple[tuple[_Values | None, _Values | None], ...]:
     # ContourShape holds arrays, so pairs are mapped back by identity.
-    volume_of = {
-        id(shape): volume
-        for shapes, volumes in ((current, current_volumes), (following, following_volumes))
-        for shape, volume in zip(shapes, volumes, strict=True)
+    depth_of = {
+        id(shape): depth
+        for shapes, depths in ((current, current_depths), (following, following_depths))
+        for shape, depth in zip(shapes, depths, strict=True)
     }
     return tuple(
         (
-            None if before is None else volume_of[id(before)],
-            None if after is None else volume_of[id(after)],
+            None if before is None else depth_of[id(before)],
+            None if after is None else depth_of[id(after)],
         )
         for before, after in pairs
     )
@@ -96,33 +100,36 @@ def _body_targets(
     keyframe: _Keyframe,
     next_keyframe: _Keyframe,
     alpha: float,
-    picks: VolumePicks,
+    lattice: FillLattice | None,
     transform: tuple[float, float, float],
-    weights: NDArray[np.float64] | None = None,
 ) -> BodyTargets:
-    _, current_shapes, current_volumes = keyframe
-    _, next_shapes, next_volumes = next_keyframe
+    _, current_shapes, current_depths, current_field = keyframe
+    _, next_shapes, next_depths, next_field = next_keyframe
     pairs = match_contours(current_shapes, next_shapes)
     outline = morph_contours(pairs, alpha)
-    volume = morph_volumes(
-        _pair_volumes(
-            pairs, current_shapes, current_volumes, next_shapes, next_volumes
-        ),
+    outline_depth = morph_outline_depths(
+        _pair_depths(pairs, current_shapes, current_depths, next_shapes, next_depths),
         alpha,
     )
-    points, depths = sample_volume(volume, picks, weights)
+    if lattice is None or current_field is None or next_field is None:
+        return BodyTargets(_to_screen(outline, transform), outline_depth)
+    fill = fill_targets(lattice, current_field, next_field, alpha)
     return BodyTargets(
         _to_screen(outline, transform),
-        volume.outline_depth,
-        _to_screen(points, transform) if picks.count else None,
-        depths if picks.count else None,
+        outline_depth,
+        _to_screen(fill.points, transform),
+        fill.depth,
+        fill.ids,
     )
 
 
-def _keyframe(frame: DepthFrame, selection: DepthSelection) -> _Keyframe:
+def _keyframe(
+    frame: DepthFrame, selection: DepthSelection, lattice: FillLattice | None = None
+) -> _Keyframe:
     shapes = prepare_contours(selection.contours)
-    return selection, shapes, build_volumes(frame, selection, shapes)
-
+    depth = filled_depth(frame, selection)
+    field = None if lattice is None else fill_field(lattice, selection, depth)
+    return selection, shapes, outline_depths(depth, shapes), field
 
 def render_frame(
     surface: pygame.Surface,
@@ -141,12 +148,17 @@ def render_frame(
     surface.fill(_BACKGROUND)
 
     if targets is None:
-        keyframe = _keyframe(frame, selection)
+        lattice = (
+            fit_lattice(_frame_grid_size(frame), [selection.mask], effects.volume_count)
+            if effects.volume_count
+            else None
+        )
+        keyframe = _keyframe(frame, selection, lattice)
         targets = _body_targets(
             keyframe,
             keyframe,
             0,
-            volume_picks(effects.volume_count),
+            lattice,
             _grid_transform(surface.get_size(), _frame_grid_size(frame)),
         )
 
@@ -155,24 +167,34 @@ def render_frame(
 
 
 class _KeyframeCache:
-    def __init__(self, sequence: DepthSequence) -> None:
+    def __init__(self, sequence: DepthSequence, volume_count: int = 0) -> None:
         self._frames = sequence.frames
+        self._selections: dict[int, DepthSelection] = {}
         self._entries: dict[int, _Keyframe] = {}
+        # One fill lattice for all keyframes, so fill targets never reshuffle.
+        self.lattice = (
+            fit_lattice(
+                _frame_grid_size(self._frames[0]),
+                [self.selection(index).mask for index in range(len(self._frames))],
+                volume_count,
+            )
+            if volume_count and self._frames
+            else None
+        )
+
+    def selection(self, index: int) -> DepthSelection:
+        selection = self._selections.get(index)
+        if selection is None:
+            selection = select_depth_regions(self._frames[index])
+            self._selections[index] = selection
+        return selection
 
     def get(self, index: int) -> _Keyframe:
         entry = self._entries.get(index)
         if entry is None:
-            frame = self._frames[index]
-            entry = _keyframe(frame, select_depth_regions(frame))
+            entry = _keyframe(self._frames[index], self.selection(index), self.lattice)
             self._entries[index] = entry
         return entry
-
-    def reference_weights(self) -> NDArray[np.float64] | None:
-        """Fixed ray weights over all keyframes, so the volume never reshuffles."""
-        return reference_weights(
-            [self.get(index)[2] for index in range(len(self._frames))]
-        )
-
 
 def run_demo(
     sequence: DepthSequence,
@@ -188,11 +210,11 @@ def run_demo(
 
     first_time = sequence.frames[0].time_ms
     frame_offsets = tuple(frame.time_ms - first_time for frame in sequence.frames)
-    keyframes = _KeyframeCache(sequence)
-    picks = volume_picks(volume_count)
-    weights = keyframes.reference_weights() if volume_count else None
+    keyframes = _KeyframeCache(sequence, volume_count)
+    if volume_count:
+        for index in range(len(sequence.frames)):
+            keyframes.get(index)
     previous_outline: NDArray[np.float64] | None = None
-    previous_volume: NDArray[np.float64] | None = None
 
     pygame.init()
     try:
@@ -227,16 +249,14 @@ def run_demo(
                 keyframe,
                 keyframes.get(next_index),
                 alpha,
-                picks,
+                keyframes.lattice,
                 _grid_transform(screen.get_size(), _frame_grid_size(current_frame)),
-                weights,
             )
-            max_step = MAX_TARGET_SPEED * delta_ms / 1000
-            outline = limit_speed(previous_outline, body.outline, max_step)
-            volume = body.volume
-            if volume is not None:
-                volume = limit_speed(previous_volume, volume, max_step)
-            previous_outline, previous_volume = outline, volume
+            # Fill targets sit on a static lattice; only the outline can jump.
+            outline = limit_speed(
+                previous_outline, body.outline, MAX_TARGET_SPEED * delta_ms / 1000
+            )
+            previous_outline = outline
 
             render_frame(
                 screen,
@@ -246,7 +266,11 @@ def run_demo(
                 elapsed_ms,
                 delta_ms,
                 targets=BodyTargets(
-                    outline, body.outline_depth, volume, body.volume_depth
+                    outline,
+                    body.outline_depth,
+                    body.volume,
+                    body.volume_depth,
+                    body.volume_ids,
                 ),
             )
             pygame.display.flip()

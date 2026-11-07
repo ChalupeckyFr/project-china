@@ -1,9 +1,10 @@
-"""Star renderer: spring-damped body particles over a reactive starfield.
+"""Star renderer: smoothly following body particles over a reactive starfield.
 
 The renderer receives screen-space targets (outline and volume points with
-their depth); it does not read CSV files or depth matrices. All particle
-state lives in arrays allocated once in :class:`StarEffect`, so the
-animation loop never creates or deletes particle objects.
+their depth and stable volume ids); it does not read CSV files or depth
+matrices. All particle state lives in arrays allocated once in
+:class:`StarEffect`, so the animation loop never creates or deletes particle
+objects.
 """
 
 import math
@@ -21,39 +22,50 @@ PARTICLE_COUNT = 72
 _ATTRACTION_RAMP_MS = 180.0
 _RELEASE_TIME_MS = 700.0
 _REFERENCE_TICK_MS = 1000 / 60
-_MAX_SUBSTEPS = 120
-_MAX_TICK_DISTANCE = 40.0
-
-# Critically damped spring, rate per reference tick (1/60 s): particles lag
-# behind a moving target about as far as the former 0.18 / 0.80 spring
-# (~16 px on fast arms) but close in without ever overshooting it.
-SPRING_RATE = 0.9
-# Velocity kept per tick once the body releases the particles.
-_RELEASE_DAMPING = 0.80
+# Overdamped follow: each reference tick (1/60 s) a particle covers this
+# share of the remaining distance, never more than MAX_TICK_DISTANCE pixels,
+# so it can neither overshoot nor shoot out of the silhouette.
+FOLLOW_RATE = 0.25
+MAX_TICK_DISTANCE = 10.0
+# Volume particles without a target fade out in place within about this time.
+FADE_MS = 120.0
+# Volume particles flying to a distant new target stay dark until they are
+# this close (screen pixels), so no visible star crosses outside the body.
+TRANSIT_FADE = (8.0, 20.0)
+# Rounds of nearest-free-target matching before the rest is paired in order.
+_MATCH_ROUNDS = 24
 
 # Static scatter around each target, slowly orbiting, in screen pixels.
-# Volume particles scatter more so they never line up into ghost contours.
+# Volume targets already sit on a jittered lattice, so they move only a little.
 JITTER_RANGE = (1.5, 2.5)
-VOLUME_JITTER_RANGE = (2.0, 4.0)
+VOLUME_JITTER_RANGE = (0.3, 0.6)
 _JITTER_SPIN = (0.3, 0.9)
 
-# Depth look: far particles are small and faint, near ones 40 % larger.
-FAR_ALPHA = 0.30
-NEAR_ALPHA = 1.00
-NEAR_SIZE_GAIN = 0.40
-_BASE_SIGMA = 0.6
-_GLOW_GAIN = 1.3
+# Depth shading: nearness 0 (receding edges), 0.5 (middle) and 1 (closest
+# chest, muscles, palms) map piecewise linearly to the radius of a soft disc
+# in screen pixels and to its peak alpha. Near particles also turn warmer.
+DEPTH_LEVELS = (0.0, 0.5, 1.0)
+DEPTH_RADIUS = (1.5, 2.4, 4.0)
+DEPTH_ALPHA = (0.22, 0.55, 0.95)
+COLD_COLOR = (170, 192, 255)
+WARM_COLOR = (255, 238, 210)
 _MIN_WEIGHT = 0.05
 _TWINKLE = 0.15
-_SPLAT_OFFSETS = np.arange(-1, 3, dtype=np.float64)
+_SPLAT_OFFSETS = np.arange(-4, 6, dtype=np.float64)
+_SPLAT_SIZE = len(_SPLAT_OFFSETS)
 
-# Background stars pushed by fast limbs and pulled back home.
-REPULSION_RADIUS = 28.0
+# Background stars stirred by fast limbs: pushed away perpendicular to the
+# bone, dragged along the swing with some turbulence, then pulled back home.
+REPULSION_RADIUS = 32.0
 _FAST_LIMB_SPEED = 150.0
+REPULSION_GAIN = 0.6
+SWING_GAIN = 0.8
 _TURBULENCE = 0.35
 _PUSH_RATE = 12.0
-_STAR_RETURN_STIFFNESS = 2.5
-_STAR_DAMPING_RATE = 3.0
+_BONE_SPAN = 3
+_STAR_RETURN_STIFFNESS = 6.0
+# Share of star velocity kept per reference tick (1/60 s).
+STAR_DAMPING = 0.92
 _STAR_REST = 0.01
 
 _Points = NDArray[np.float64]
@@ -65,13 +77,15 @@ class BodyTargets:
     """Screen targets of one rendered frame.
 
     Depths are raw values from the depth matrix; smaller is closer to the
-    camera. Missing depths render every particle as near.
+    camera. Missing depths render every particle as near. ``volume_ids``
+    identify volume targets across frames; without them the index is used.
     """
 
     outline: _Points
     outline_depth: _Values | None = None
     volume: _Points | None = None
     volume_depth: _Values | None = None
+    volume_ids: NDArray[np.intp] | None = None
 
 
 def _as_targets(
@@ -118,7 +132,6 @@ class StarEffect:
                 generator.uniform(0, self._height, total),
             )
         )
-        self._velocity = np.zeros((total, 2))
         self._drift = generator.uniform(-8, 8, (total, 2))
         self._phase = generator.uniform(0, math.tau, total)
         self._jitter_radius = generator.uniform(*JITTER_RANGE, total)
@@ -138,17 +151,21 @@ class StarEffect:
         self._target_nearness = np.ones(total)
         self._jittered = np.zeros((total, 2))
         self._offset = np.zeros((total, 2))
-        self._carry = np.zeros((total, 2))
         self._speed = np.zeros(total)
+        self._assigned = np.zeros(total, dtype=np.bool_)
+        self._presence = np.ones(total)
+        self._slot_id = np.full(volume_count, -1, dtype=np.intp)
         self._previous_outline: _Points | None = None
         self._has_targets = False
         self._attraction_strength = 0.0
 
         self._light = np.zeros((self._width, self._height), dtype=np.float32)
         self._light_surface = pygame.Surface(size)
-        self._weights = np.zeros((total, 4, 4))
-        self._columns = np.zeros((total, 4, 4), dtype=np.intp)
-        self._rows = np.zeros((total, 4, 4), dtype=np.intp)
+        self._warmth = np.zeros((self._width, self._height), dtype=np.float32)
+        splat = (total, _SPLAT_SIZE, _SPLAT_SIZE)
+        self._weights = np.zeros(splat)
+        self._columns = np.zeros(splat, dtype=np.intp)
+        self._rows = np.zeros(splat, dtype=np.intp)
 
     @property
     def attraction_strength(self) -> float:
@@ -169,6 +186,11 @@ class StarEffect:
     @property
     def particle_nearness(self) -> _Values:
         return self._nearness.copy()
+
+    @property
+    def particle_presence(self) -> _Values:
+        """Opacity factor of each particle; volume particles without a target fade to 0."""
+        return self._presence.copy()
 
     @property
     def star_positions(self) -> _Points:
@@ -194,6 +216,9 @@ class StarEffect:
             if self._attraction_strength < 0.001:
                 self._attraction_strength = 0.0
                 self._has_targets = False
+        if not len(outline):
+            self._assigned[...] = False
+            self._slot_id[...] = -1
 
         self._stir_stars(outline if len(outline) else None, delta_ms / 1000)
         self._step_particles(delta_ms)
@@ -229,15 +254,69 @@ class StarEffect:
         index = np.arange(count) * len(outline) // count
         self._target[:count] = outline[index]
         self._target_nearness[:count] = outline_near[index]
+        self._assigned[:count] = True
 
         if self._volume_count:
             if len(volume):
                 source, source_near = volume, nearness(volume_depth, len(volume))
+                ids = (
+                    np.arange(len(volume))
+                    if body.volume_ids is None
+                    else np.asarray(body.volume_ids, dtype=np.intp)
+                )
             else:
                 source, source_near = outline, outline_near
-            index = np.arange(self._volume_count) * len(source) // self._volume_count
-            self._target[count:] = source[index]
-            self._target_nearness[count:] = source_near[index]
+                ids = np.arange(len(outline))
+            self._match_volume(source, source_near, ids)
+
+    def _match_volume(self, points: _Points, near: _Values, ids: NDArray[np.intp]) -> None:
+        """Keep each volume particle on its target id; pair the rest by proximity.
+
+        A particle whose target id is still present keeps it, so targets never
+        swap between body parts. Released particles take the nearest free
+        target; particles left without one stay where they are and fade out.
+        """
+        start = self._outline_count
+        slots = self._slot_id
+        order = np.argsort(ids, kind="stable")
+        sorted_ids = ids[order]
+        found = np.searchsorted(sorted_ids, slots).clip(0, max(len(ids) - 1, 0))
+        keeps = (slots >= 0) & (len(ids) > 0)
+        if len(ids):
+            keeps &= sorted_ids[found] == slots
+        owner = np.full(len(ids), -1, dtype=np.intp)
+        kept = np.flatnonzero(keeps)
+        target_of = np.full(len(slots), -1, dtype=np.intp)
+        target_of[kept] = order[found[kept]]
+        owner[target_of[kept]] = kept
+
+        free = np.flatnonzero(~keeps)
+        open_targets = np.flatnonzero(owner < 0)
+        positions = self._position[start:]
+        for _ in range(_MATCH_ROUNDS):
+            if not len(free) or not len(open_targets):
+                break
+            offset = positions[free, None, :] - points[None, open_targets, :]
+            distance = np.hypot(offset[..., 0], offset[..., 1])
+            choice = np.argmin(distance, axis=1)
+            # Each wanted target goes to its closest applicant.
+            ranking = np.lexsort((distance[np.arange(len(free)), choice], choice))
+            first = np.ones(len(ranking), dtype=np.bool_)
+            first[1:] = choice[ranking][1:] != choice[ranking][:-1]
+            winners = ranking[first]
+            target_of[free[winners]] = open_targets[choice[winners]]
+            owner[open_targets[choice[winners]]] = free[winners]
+            free = np.delete(free, winners)
+            open_targets = np.flatnonzero(owner < 0)
+        pairs = min(len(free), len(open_targets))
+        target_of[free[:pairs]] = open_targets[:pairs]
+
+        assigned = target_of >= 0
+        slots[...] = -1
+        slots[assigned] = ids[target_of[assigned]]
+        self._assigned[start:] = assigned
+        self._target[start:][assigned] = points[target_of[assigned]]
+        self._target_nearness[start:][assigned] = near[target_of[assigned]]
 
     def _step_particles(self, delta_ms: int) -> None:
         ticks = delta_ms / _REFERENCE_TICK_MS
@@ -246,6 +325,7 @@ class StarEffect:
         seconds = delta_ms / 1000
         strength = self._attraction_strength
         self._jitter_angle += self._jitter_spin * seconds
+        fade = 1 - math.exp(-delta_ms / FADE_MS)
 
         if self._has_targets and strength > 0:
             np.multiply(
@@ -256,43 +336,37 @@ class StarEffect:
                 out=self._jittered,
             )
             self._jittered += self._target
-            self._nearness += (self._target_nearness - self._nearness) * min(
-                1.0, strength
-            )
+            assigned = self._assigned
+            self._nearness[assigned] += (
+                self._target_nearness[assigned] - self._nearness[assigned]
+            ) * min(1.0, strength)
 
-            substeps = min(_MAX_SUBSTEPS, max(1, math.ceil(ticks)))
-            step = min(1.0, ticks / substeps)
-            rate = SPRING_RATE * math.sqrt(strength)
-            decay = math.exp(-rate * step)
-            max_move = _MAX_TICK_DISTANCE * step
-            for _ in range(substeps):
-                # Exact step of x'' = -rate^2 e - 2 rate x' for e = x - target.
-                np.subtract(self._position, self._jittered, out=self._offset)
-                np.multiply(self._offset, rate, out=self._carry)
-                self._carry += self._velocity
-                self._carry *= step
-                self._velocity -= self._carry * rate
-                self._velocity *= decay
-                self._offset += self._carry
-                self._offset *= decay
-                self._offset += self._jittered
-                # Speed cap only slows particles down, it cannot overshoot.
-                self._offset -= self._position
-                np.hypot(self._offset[:, 0], self._offset[:, 1], out=self._speed)
-                too_fast = self._speed > max_move
-                if too_fast.any():
-                    scale = (max_move / self._speed[too_fast])[:, None]
-                    self._offset[too_fast] *= scale
-                    self._velocity[too_fast] *= scale
-                self._position += self._offset
+            # Exponential approach (never past the target), capped per tick.
+            share = 1 - (1 - FOLLOW_RATE * strength) ** ticks
+            np.subtract(self._jittered, self._position, out=self._offset)
+            self._offset *= share
+            self._offset[~assigned] = 0
+            np.hypot(self._offset[:, 0], self._offset[:, 1], out=self._speed)
+            max_move = MAX_TICK_DISTANCE * ticks
+            too_fast = self._speed > max_move
+            if too_fast.any():
+                self._offset[too_fast] *= (max_move / self._speed[too_fast])[:, None]
+            self._position += self._offset
+
+            np.subtract(self._jittered, self._position, out=self._offset)
+            np.hypot(self._offset[:, 0], self._offset[:, 1], out=self._speed)
+            near, far = TRANSIT_FADE
+            goal = np.clip((far - self._speed) / (far - near), 0, 1)
+            goal[: self._outline_count] = 1
+            goal *= assigned
+            self._presence += (goal - self._presence) * fade
         else:
-            self._velocity *= _RELEASE_DAMPING ** min(ticks, _MAX_SUBSTEPS)
+            self._presence += (1 - self._presence) * fade
 
         self._position += self._drift * (seconds * (1 - strength))
         if strength == 0:
             self._position[:, 0] %= self._width
             self._position[:, 1] %= self._height
-
     def _stir_stars(self, outline: _Points | None, seconds: float) -> None:
         previous = self._previous_outline
         if outline is None:
@@ -309,7 +383,9 @@ class StarEffect:
         fast = np.hypot(velocity[:, 0], velocity[:, 1]) > _FAST_LIMB_SPEED
         if not fast.any():
             return
-        points, limb_velocity = outline[fast], velocity[fast]
+        tangent = np.roll(outline, -_BONE_SPAN, axis=0) - np.roll(outline, _BONE_SPAN, axis=0)
+        tangent /= np.maximum(np.hypot(tangent[:, 0], tangent[:, 1]), 1e-9)[:, None]
+        points, limb_velocity, bone = outline[fast], velocity[fast], tangent[fast]
         low = points.min(axis=0) - REPULSION_RADIUS
         high = points.max(axis=0) + REPULSION_RADIUS
         candidates = np.flatnonzero(
@@ -327,10 +403,18 @@ class StarEffect:
             return
         stars = candidates[touched]
         weight = weight[touched]
-        mean_velocity = (weight @ limb_velocity) / total[touched, None]
-        across = np.column_stack((-mean_velocity[:, 1], mean_velocity[:, 0]))
+        offset = offset[touched]
+        # Repulsion: the part of the offset perpendicular to the bone.
+        along = np.einsum("spk,pk->sp", offset, bone)
+        normal = offset - along[..., None] * bone[None, :, :]
+        normal /= np.maximum(np.hypot(normal[..., 0], normal[..., 1]), 1e-9)[..., None]
+        speed = np.hypot(limb_velocity[:, 0], limb_velocity[:, 1])
+        share = weight / total[touched, None]
+        repel = np.einsum("sp,spk->sk", share * speed[None, :], normal)
+        swing = share @ limb_velocity
+        across = np.column_stack((-swing[:, 1], swing[:, 0]))
         swirl = self._turbulence.uniform(-_TURBULENCE, _TURBULENCE, len(stars))
-        push = mean_velocity + across * swirl[:, None]
+        push = REPULSION_GAIN * repel + SWING_GAIN * swing + across * swirl[:, None]
         rate = weight.max(axis=1) * min(1.0, _PUSH_RATE * seconds)
         self._star_velocity[stars] += (push - self._star_velocity[stars]) * rate[
             :, None
@@ -342,7 +426,7 @@ class StarEffect:
             return
         substeps = min(60, max(1, math.ceil(seconds * 60)))
         step = min(seconds / substeps, 1 / 60)
-        damping = math.exp(-_STAR_DAMPING_RATE * step)
+        damping = STAR_DAMPING ** (step * 1000 / _REFERENCE_TICK_MS)
         for _ in range(substeps):
             self._star_velocity += (
                 (self._star_home - self._star_position) * _STAR_RETURN_STIFFNESS * step
@@ -370,22 +454,28 @@ class StarEffect:
             pygame.draw.circle(surface, color, (x, y), 2 if big else 1)
 
     def _draw_particles(self, surface: pygame.Surface, elapsed_ms: int) -> None:
-        """Additive Gaussian splats: sub-pixel positions, depth-driven size and alpha."""
+        """Additive soft discs: sub-pixel positions, depth-driven size, alpha and hue."""
         x, y = self._position[:, 0], self._position[:, 1]
         wave = (np.sin(elapsed_ms / 180 + self._phase) + 1) / 2
-        alpha = (FAR_ALPHA + (NEAR_ALPHA - FAR_ALPHA) * self._nearness) * (
-            1 - _TWINKLE + _TWINKLE * wave
+        near = self._nearness
+        alpha = (
+            np.interp(near, DEPTH_LEVELS, DEPTH_ALPHA)
+            * (1 - _TWINKLE + _TWINKLE * wave)
+            * self._presence
         )
-        sigma = _BASE_SIGMA * (1 + NEAR_SIZE_GAIN * self._nearness)
+        radius = np.interp(near, DEPTH_LEVELS, DEPTH_RADIUS)
 
         columns = np.floor(x)[:, None] + _SPLAT_OFFSETS
         rows = np.floor(y)[:, None] + _SPLAT_OFFSETS
-        spread = 2 * sigma[:, None] ** 2
-        horizontal = np.exp(-((columns - x[:, None]) ** 2) / spread)
-        vertical = np.exp(-((rows - y[:, None]) ** 2) / spread)
-        np.multiply(horizontal[:, :, None], vertical[:, None, :], out=self._weights)
+        inverse = 1 / radius[:, None] ** 2
+        horizontal = (columns + 0.5 - x[:, None]) ** 2 * inverse
+        vertical = (rows + 0.5 - y[:, None]) ** 2 * inverse
+        np.add(horizontal[:, :, None], vertical[:, None, :], out=self._weights)
+        np.subtract(1, self._weights, out=self._weights)
+        np.maximum(self._weights, 0, out=self._weights)
+        np.square(self._weights, out=self._weights)
         self._weights[self._weights < _MIN_WEIGHT] = 0
-        self._weights *= (alpha * _GLOW_GAIN)[:, None, None]
+        self._weights *= alpha[:, None, None]
         self._columns[...] = columns.astype(np.intp)[:, :, None]
         self._rows[...] = rows.astype(np.intp)[:, None, :]
 
@@ -402,15 +492,22 @@ class StarEffect:
         rows_hit = self._rows[visible]
         left, right = int(columns_hit.min()), int(columns_hit.max()) + 1
         top, bottom = int(rows_hit.min()), int(rows_hit.max()) + 1
+        span = bottom - top
 
+        weights = self._weights[visible]
+        cells = (columns_hit - left) * span + (rows_hit - top)
         light = self._light[left:right, top:bottom]
-        light.fill(0)
-        np.add.at(self._light, (columns_hit, rows_hit), self._weights[visible])
+        warmth = self._warmth[left:right, top:bottom]
+        size = (right - left) * span
+        light[...] = np.bincount(cells, weights, size).reshape(right - left, span)
+        warm_weights = weights * np.broadcast_to(near[:, None, None], self._weights.shape)[visible]
+        warmth[...] = np.bincount(cells, warm_weights, size).reshape(right - left, span)
+        np.divide(warmth, np.maximum(light, 1e-6), out=warmth)
         np.minimum(light, 1, out=light)
         pixels = pygame.surfarray.pixels3d(self._light_surface)
         try:
-            for channel, value in enumerate(_BRIGHT_STAR_COLOR):
-                pixels[left:right, top:bottom, channel] = light * value
+            for channel, (cold, warm) in enumerate(zip(COLD_COLOR, WARM_COLOR, strict=True)):
+                pixels[left:right, top:bottom, channel] = light * (cold + (warm - cold) * warmth)
         finally:
             del pixels
         surface.blit(
