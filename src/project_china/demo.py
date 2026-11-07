@@ -26,6 +26,7 @@ from project_china.volume import (
     VolumeShape,
     build_volumes,
     morph_volumes,
+    reference_weights,
     sample_volume,
     volume_picks,
 )
@@ -97,6 +98,7 @@ def _body_targets(
     alpha: float,
     picks: VolumePicks,
     transform: tuple[float, float, float],
+    weights: NDArray[np.float64] | None = None,
 ) -> BodyTargets:
     _, current_shapes, current_volumes = keyframe
     _, next_shapes, next_volumes = next_keyframe
@@ -108,7 +110,7 @@ def _body_targets(
         ),
         alpha,
     )
-    points, depths = sample_volume(volume, picks)
+    points, depths = sample_volume(volume, picks, weights)
     return BodyTargets(
         _to_screen(outline, transform),
         volume.outline_depth,
@@ -165,6 +167,12 @@ class _KeyframeCache:
             self._entries[index] = entry
         return entry
 
+    def reference_weights(self) -> NDArray[np.float64] | None:
+        """Fixed ray weights over all keyframes, so the volume never reshuffles."""
+        return reference_weights(
+            [self.get(index)[2] for index in range(len(self._frames))]
+        )
+
 
 def run_demo(
     sequence: DepthSequence,
@@ -182,6 +190,7 @@ def run_demo(
     frame_offsets = tuple(frame.time_ms - first_time for frame in sequence.frames)
     keyframes = _KeyframeCache(sequence)
     picks = volume_picks(volume_count)
+    weights = keyframes.reference_weights() if volume_count else None
     previous_outline: NDArray[np.float64] | None = None
     previous_volume: NDArray[np.float64] | None = None
 
@@ -220,6 +229,7 @@ def run_demo(
                 alpha,
                 picks,
                 _grid_transform(screen.get_size(), _frame_grid_size(current_frame)),
+                weights,
             )
             max_step = MAX_TARGET_SPEED * delta_ms / 1000
             outline = limit_speed(previous_outline, body.outline, max_step)

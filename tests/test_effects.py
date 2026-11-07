@@ -4,7 +4,7 @@ import numpy as np
 import pygame
 import pytest
 
-from project_china.effects import BodyTargets, StarEffect
+from project_china.effects import JITTER_RANGE, BodyTargets, StarEffect
 
 
 def _mean_distance(
@@ -116,7 +116,7 @@ def _settle(effect: StarEffect, targets: object, ticks: int = 300) -> None:
         effect.update(16, targets)
 
 
-def test_spring_lags_behind_a_jump_and_overshoots() -> None:
+def test_spring_lags_behind_a_jump_without_overshoot() -> None:
     effect = StarEffect((320, 240), 1)
     _settle(effect, ((100, 120),))
 
@@ -125,13 +125,31 @@ def test_spring_lags_behind_a_jump_and_overshoots() -> None:
         effect.update(16, ((200, 120),))
         trail.append(effect.particle_positions[0][0])
 
-    # Stiffness 0.18 / damping 0.80: still behind the target two ticks
-    # after the jump, then a visible overshoot that settles.
-    assert trail[0] < 120
-    assert trail[1] < 150
-    assert trail[2] < 180
-    assert 205 < max(trail) < 260
+    # Critically damped: still behind the target two ticks after the jump,
+    # then it closes in monotonically and never passes the target.
+    assert trail[0] < 130
+    assert trail[1] < 160
+    assert trail[2] < 185
+    assert max(trail) <= 200 + JITTER_RANGE[1]
     assert abs(trail[-1] - 200) <= 3
+
+
+def test_spring_follows_a_moving_target_and_stops_without_overshoot() -> None:
+    effect = StarEffect((320, 240), 1)
+    _settle(effect, ((40, 120),))
+
+    lags: list[float] = []
+    for tick in range(120):
+        target = 40 + 4 * min(tick + 1, 60)
+        effect.update(16, ((target, 120),))
+        x = effect.particle_positions[0][0]
+        if tick < 60:
+            lags.append(target - x)
+        assert x <= 280 + JITTER_RANGE[1]
+
+    # A fast limb leaves a short kinetic trail behind it, not a lasting one.
+    assert 5 < max(lags) < 25
+    assert abs(effect.particle_positions[0][0] - 280) <= 3
 
 
 def test_settled_particles_keep_a_small_jitter_around_targets() -> None:

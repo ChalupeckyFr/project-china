@@ -37,11 +37,8 @@ TORSO_HEIGHT = _SHOULDER_HEIGHT - _CROTCH_HEIGHT
 SMIN_K = 0.15
 _BLEND = SMIN_K * HEAD_WIDTH
 _EDGE_FALLOFF = 0.010
-# Depth bulge is this fraction of the local half-width (cylindrical profile).
+# Depth bulge is this fraction of the local half-width.
 DEPTH_RATIO = 0.75
-# The profile reaches its flat top at this fraction of the half-width, so the
-# ridge of the distance field along each axis never shows as a crease.
-_AXIS_PLATEAU = 0.85
 # Gaussian sigmas in grid pixels smoothing the edge distance, thickness and
 # segment planes.
 _EDGE_SMOOTHING = 2.0
@@ -217,12 +214,12 @@ class _Body:
     def depth_surface(self) -> _FloatMap:
         """Front surface in metres; ``inf`` outside the silhouette.
 
-        A cylinder of radius ``R`` seen from the front bulges by
-        ``sqrt(R^2 - (R - d)^2)`` at distance ``d`` from its edge. Here ``d``
-        comes from the single smin-united distance field and ``R`` is the
-        smoothed local half-width; the profile tops out slightly before the
-        axis, so the ridge of the distance field leaves no line along limbs
-        and the surface stays continuous across joints.
+        Every cross-section bulges as a parabola ``R * (1 - (1 - d / R)^2)``
+        over its whole width, where ``d`` is the distance from the edge in
+        the single smin-united distance field and ``R`` the smoothed local
+        half-width. The parabola has zero slope on the axis, so the ridge of
+        the distance field leaves no crease, and there is no flat top that
+        would separate the edge from the middle of the body.
         """
         inside = self.distance <= 0
         edge = np.where(inside, -self.distance, 0.0) / _PIXEL_SIZE
@@ -230,12 +227,12 @@ class _Body:
             _masked_blur(local_half_width(edge), inside, _THICKNESS_SMOOTHING), 1.0
         )
         rounded_edge = _masked_blur(edge, inside, _EDGE_SMOOTHING)
-        towards_axis = np.clip(rounded_edge / (_AXIS_PLATEAU * half_width), 0, 1)
+        towards_axis = np.clip(rounded_edge / half_width, 0, 1)
         bulge = (
             DEPTH_RATIO
             * half_width
             * _PIXEL_SIZE
-            * np.sqrt(1 - (1 - towards_axis) ** 2)
+            * (1 - (1 - towards_axis) ** 2)
         )
         plane = self._plane_sum / np.maximum(self._weight_sum, 1e-12)
         plane = _masked_blur(plane, inside, _PLANE_SMOOTHING)

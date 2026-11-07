@@ -123,11 +123,12 @@ předloktí. Hlava je hladký elipsoid bez uší, krk má asi 46 % šířky hlav
 Spoje trupu, krku, ramen a končetin jsou slité polynomiálním smooth minimum
 (`SMIN_K = 0.15` v jednotkách šířky hlavy, tj. asi 2,5 cm), takže v podpaží
 ani u krku nevznikají ostré zářezy. Hloubka (2.5D) se nepočítá po segmentech:
-nejdřív vznikne jedno sloučené SDF celé postavy a z něj válcový profil podle
-lokální poloviční šířky těla s plochým vrcholem, takže uvnitř nejsou švy mezi
+nejdřív vznikne jedno sloučené SDF celé postavy a z něj hladký parabolický
+profil přes celou lokální šířku těla (bez plochého vrcholu), takže uvnitř
+nejsou švy mezi
 hrudníkem, pasem, pánví a končetinami ani hřbety podél jejich os. Nos a očnice
 jsou jemný reliéf obličeje. Hloubky se ukládají na tři desetinná místa
-(viz [T-018](TASKS.md#t-018)).
+(viz [T-018](TASKS.md#t-018) a [T-019](TASKS.md#t-019)).
 
 Paže se pohybují s easingem `sin²`, takže v dolní a horní úvrati zpomalí.
 Nad horizontálou se ramenní kloub zvedá až o 6,5 % výšky trupu a mírně
@@ -189,7 +190,9 @@ Obrys se mezi snímky CSV plynule morfuje (modul `project_china.morph`):
   vlastního prahování.
 
 Obrysy a objemy klíčových snímků se počítají jen jednou a ukládají se do
-mezipaměti. Obrys postavy či objektu se nevykresluje čarou, jeho tvar
+mezipaměti. Pokud demo kreslí objem, spočítá je při startu všechny (u člověka
+asi 1 s navíc), aby rozdělení objemových hvězd mezi paprsky bylo pevné.
+Obrys postavy či objektu se nevykresluje čarou, jeho tvar
 naznačují hvězdy.
 Samostatné kolečko uprostřed cíle se nevykresluje.
 Samostatná prolétající hvězda v pozadí se nevykresluje.
@@ -198,26 +201,31 @@ Vykreslování (modul `project_china.effects`) dostává jen body na obrazovce
 a jejich hloubky; CSV ani matice nečte. Geometrii objemu počítá z hloubkové
 matice samostatný modul `project_china.volume`:
 
-- 2.5D objem: z každého bodu obrysu vede paprsek dovnitř do poloviny těla.
-  Objemové hvězdy na něm leží v náhodné spojité vzdálenosti od okraje
-  s pravděpodobností `P = (1 − vzdálenost)^2,5`, takže jsou nejhustší
-  u okrajů, ke středu plynule řídnou a nevytváří vrstevnice ani vnitřní
-  čáry. Objem se morfuje mezi snímky stejně jako obrys.
+- 2.5D objem: z každého bodu vnějšího obrysu vede paprsek dovnitř až
+  kousek za osu těla (hřeben vzdálenostní mapy, délka vyhlazená podél
+  obrysu). Objemové hvězdy na něm leží v náhodné spojité vzdálenosti od
+  okraje s hustotou `1 − 0,8 · vzdálenost`, takže vyplní celý vnitřek bez
+  děr a okraj je jen mírně (asi 1,15–1,35×) hustší. Počet hvězd na paprsek
+  je pevný pro celou sekvenci, takže si cíle mezi snímky nevyměňují místa
+  napříč tělem. Objem se morfuje mezi snímky stejně jako obrys. Obrysové
+  hvězdy vznikají jen na vnější hranici celé siluety.
 - Hloubka: blízké hvězdy jsou o 40 % větší s alfou až 1,0, vzdálené menší
   a tlumené (alfa od 0,30); hloubka se normalizuje min/max v rámci snímku.
+  Objemový dojem tedy vzniká velikostí a jasem, ne prázdnými místy.
 - Každá hvězda obrysu má k cíli malý posun 1,5–2,5 px, objemová 2–4 px;
   posun pomalu obíhá, takže nevzniká rastr ani zdvojené čáry.
-- Hvězdy se k cíli táhnou tlumenou pružinou (tuhost 0,18, tlumení 0,80 na
-  referenčním kroku 60 Hz), takže za rychlou paží mírně zaostávají
-  a dobíhají s přestřelem. Náběh přitažlivosti trvá 180 ms
-  a uvolnění má časovou konstantu 700 ms.
+- Hvězdy se k cíli táhnou kriticky tlumenou pružinou (rychlost 0,9 na
+  referenční krok 60 Hz, strop 40 px na krok), takže za rychlou paží
+  mírně zaostávají, ale nikdy cíl nepřestřelí. Náběh přitažlivosti trvá
+  180 ms a uvolnění má časovou konstantu 700 ms.
 - Body obrysu rychlejší než 150 px/s odhrnou hvězdy pozadí do 28 px ve
   směru pohybu s mírnou turbulencí; hvězdy se pak tlumeně vrátí na místo.
 - Stav všech hvězd je v polích alokovaných jednou při startu.
 
 Parametry nemají nastavovací UI; popisují je
-[`DEC-018`](DECISIONS.md#dec-018) a [`DEC-019`](DECISIONS.md#dec-019),
-původní přijaté hodnoty [`DEC-009`](DECISIONS.md#dec-009).
+[`DEC-018`](DECISIONS.md#dec-018), [`DEC-019`](DECISIONS.md#dec-019)
+a [`DEC-020`](DECISIONS.md#dec-020), původní přijaté hodnoty
+[`DEC-009`](DECISIONS.md#dec-009).
 
 ## Co tu (zatím) není
 

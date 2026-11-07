@@ -24,9 +24,12 @@ _REFERENCE_TICK_MS = 1000 / 60
 _MAX_SUBSTEPS = 120
 _MAX_TICK_DISTANCE = 40.0
 
-# Spring-damper per reference tick (1/60 s).
-SPRING_STIFFNESS = 0.18
-SPRING_DAMPING = 0.80
+# Critically damped spring, rate per reference tick (1/60 s): particles lag
+# behind a moving target about as far as the former 0.18 / 0.80 spring
+# (~16 px on fast arms) but close in without ever overshooting it.
+SPRING_RATE = 0.9
+# Velocity kept per tick once the body releases the particles.
+_RELEASE_DAMPING = 0.80
 
 # Static scatter around each target, slowly orbiting, in screen pixels.
 # Volume particles scatter more so they never line up into ghost contours.
@@ -134,6 +137,8 @@ class StarEffect:
         self._target = np.zeros((total, 2))
         self._target_nearness = np.ones(total)
         self._jittered = np.zeros((total, 2))
+        self._offset = np.zeros((total, 2))
+        self._carry = np.zeros((total, 2))
         self._speed = np.zeros(total)
         self._previous_outline: _Points | None = None
         self._has_targets = False
@@ -257,20 +262,31 @@ class StarEffect:
 
             substeps = min(_MAX_SUBSTEPS, max(1, math.ceil(ticks)))
             step = min(1.0, ticks / substeps)
-            damping = SPRING_DAMPING**step
-            pull = SPRING_STIFFNESS * strength * step
+            rate = SPRING_RATE * math.sqrt(strength)
+            decay = math.exp(-rate * step)
+            max_move = _MAX_TICK_DISTANCE * step
             for _ in range(substeps):
-                self._velocity *= damping
-                self._velocity += (self._jittered - self._position) * pull
-                np.hypot(self._velocity[:, 0], self._velocity[:, 1], out=self._speed)
-                too_fast = self._speed > _MAX_TICK_DISTANCE
+                # Exact step of x'' = -rate^2 e - 2 rate x' for e = x - target.
+                np.subtract(self._position, self._jittered, out=self._offset)
+                np.multiply(self._offset, rate, out=self._carry)
+                self._carry += self._velocity
+                self._carry *= step
+                self._velocity -= self._carry * rate
+                self._velocity *= decay
+                self._offset += self._carry
+                self._offset *= decay
+                self._offset += self._jittered
+                # Speed cap only slows particles down, it cannot overshoot.
+                self._offset -= self._position
+                np.hypot(self._offset[:, 0], self._offset[:, 1], out=self._speed)
+                too_fast = self._speed > max_move
                 if too_fast.any():
-                    self._velocity[too_fast] *= (
-                        _MAX_TICK_DISTANCE / self._speed[too_fast]
-                    )[:, None]
-                self._position += self._velocity * step
+                    scale = (max_move / self._speed[too_fast])[:, None]
+                    self._offset[too_fast] *= scale
+                    self._velocity[too_fast] *= scale
+                self._position += self._offset
         else:
-            self._velocity *= SPRING_DAMPING ** min(ticks, _MAX_SUBSTEPS)
+            self._velocity *= _RELEASE_DAMPING ** min(ticks, _MAX_SUBSTEPS)
 
         self._position += self._drift * (seconds * (1 - strength))
         if strength == 0:

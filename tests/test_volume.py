@@ -9,10 +9,11 @@ from project_china.morph import MORPH_POINT_COUNT, morph_contours, prepare_conto
 from project_china.selection import select_depth_regions
 from project_china.synthetic_human import human_frame
 from project_china.volume import (
-    FRESNEL_POWER,
+    EDGE_BIAS,
     VOLUME_LAYERS,
     build_volumes,
     morph_volumes,
+    reference_weights,
     sample_volume,
     volume_picks,
 )
@@ -40,33 +41,7 @@ def test_volume_points_lie_inside_the_silhouette() -> None:
     assert source.min() <= depths.min() and depths.max() <= source.max()
 
 
-def test_volume_is_densest_at_the_edges() -> None:
-    _, selection, _, _, points, _ = _human_volume()
-
-    inscribed = cv2.distanceTransform(selection.mask, cv2.DIST_L2, 5)
-    distance = inscribed[np.rint(points[:, 1]).astype(int), np.rint(points[:, 0]).astype(int)]
-
-    def density(low: float, high: float) -> float:
-        area = np.count_nonzero((inscribed > low) & (inscribed <= high))
-        return np.count_nonzero((distance > low) & (distance <= high)) / area
-
-    assert density(0, 4) > 1.3 * density(8, 40)
-
-
-def test_volume_picks_follow_the_stochastic_fresnel_density() -> None:
-    inward = np.sort(volume_picks(20000).inward)
-
-    # Density (1 - t)^2.5 integrates to the CDF 1 - (1 - t)^3.5.
-    expected = 1 - (1 - inward) ** (FRESNEL_POWER + 1)
-    empirical = (np.arange(len(inward)) + 0.5) / len(inward)
-    assert np.abs(expected - empirical).max() < 0.015
-    # Continuous positions: no particle shares a fixed layer with another.
-    assert len(np.unique(inward)) == len(inward)
-
-
-def test_volume_density_falls_steadily_without_rings() -> None:
-    _, selection, _, _, points, _ = _human_volume(count=20000)
-
+def _density(selection, points):
     inscribed = cv2.distanceTransform(selection.mask, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
     distance = inscribed[np.rint(points[:, 1]).astype(int), np.rint(points[:, 0]).astype(int)]
 
@@ -74,8 +49,96 @@ def test_volume_density_falls_steadily_without_rings() -> None:
         area = np.count_nonzero((inscribed > low) & (inscribed <= high))
         return np.count_nonzero((distance > low) & (distance <= high)) / area
 
-    shells = [density(low, low + 2) for low in (1, 3, 5, 7)]
-    assert all(outer > inner for outer, inner in itertools.pairwise(shells))
+    return density
+
+
+def test_volume_edge_is_only_mildly_denser_than_the_middle() -> None:
+    _, selection, _, _, points, _ = _human_volume(count=20000)
+    density = _density(selection, points)
+
+    edge, middle = density(1, 4), density(8, 40)
+    assert 1.1 * middle < edge < 3 * middle
+
+
+def test_volume_fills_the_body_without_dark_holes() -> None:
+    for index in (0, 30, 60, 90):
+        _, selection, _, _, points, _ = _human_volume(index, count=1500)
+
+        empty = np.full(selection.mask.shape, 255, np.uint8)
+        empty[np.rint(points[:, 1]).astype(int), np.rint(points[:, 0]).astype(int)] = 0
+        gap = cv2.distanceTransform(empty, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+        interior = cv2.erode(selection.mask, np.ones((5, 5), np.uint8)) != 0
+        # 1500 particles over the body; the old (1 - t)^2.5 fill left
+        # empty discs over 11 grid pixels wide in the chest.
+        assert gap[interior].max() < 7.5
+
+
+def test_volume_picks_follow_the_even_fill_density() -> None:
+    inward = np.sort(volume_picks(20000).inward)
+
+    # Density 1 - c t integrates to the CDF (t - c t^2 / 2) / (1 - c / 2).
+    expected = (inward - EDGE_BIAS * inward**2 / 2) / (1 - EDGE_BIAS / 2)
+    empirical = (np.arange(len(inward)) + 0.5) / len(inward)
+    assert np.abs(expected - empirical).max() < 0.015
+    # Continuous positions: no particle shares a fixed layer with another.
+    assert len(np.unique(inward)) == len(inward)
+
+
+def test_volume_density_has_no_rings() -> None:
+    _, selection, _, _, points, _ = _human_volume(count=20000)
+    density = _density(selection, points)
+
+    shells = [density(low, low + 2) for low in range(1, 15, 2)]
+    # Neighbouring shells differ smoothly, never as a dense ring next to a gap.
+    assert all(
+        abs(outer - inner) < 0.3 * max(outer, inner)
+        for outer, inner in itertools.pairwise(shells)
+    )
+    assert min(shells) > 0.4 * max(shells)
+
+
+def test_volume_targets_do_not_jump_between_neighbouring_keyframes() -> None:
+    keyframes = []
+    for index in range(20, 40):
+        frame = human_frame(index)
+        selection = select_depth_regions(frame)
+        shapes = prepare_contours(selection.contours)
+        keyframes.append((shapes, build_volumes(frame, selection, shapes)))
+    weights = reference_weights([volumes for _, volumes in keyframes])
+    assert weights is not None
+    picks = volume_picks(1500)
+
+    previous = None
+    steps = []
+    for (_, current), (_, following) in itertools.pairwise(keyframes):
+        for alpha in (0, 0.25, 0.5, 0.75):
+            morphed = morph_volumes(((current[0], following[0]),), alpha)
+            points, _ = sample_volume(morphed, picks, weights)
+            if previous is not None:
+                steps.append(np.hypot(*(points - previous).T).max())
+            previous = points
+    # One quarter keyframe at 60 Hz; the body moves at most a few pixels, the
+    # old per-frame redistribution threw targets across the body (~30 px).
+    assert max(steps) < 8
+
+
+def test_reference_weights_need_one_contour_in_every_keyframe() -> None:
+    frame = human_frame(30)
+    selection = select_depth_regions(frame)
+    volumes = build_volumes(frame, selection, prepare_contours(selection.contours))
+
+    assert reference_weights([volumes, volumes]) is not None
+    assert reference_weights([volumes, volumes * 2]) is None
+
+def test_outline_lies_only_on_the_outer_silhouette_edge() -> None:
+    for index in (0, 30, 60, 90):
+        _, selection, _, morphed, _, _ = _human_volume(index, count=0)
+
+        inside = cv2.distanceTransform(selection.mask, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+        rows = np.rint(morphed.outline[:, 1]).astype(int)
+        columns = np.rint(morphed.outline[:, 0]).astype(int)
+        # No outline point sits on an inner depth change or a limb joint.
+        assert inside[rows, columns].max() <= 1.5
 
 
 def test_volume_outline_matches_the_morphed_contour() -> None:
