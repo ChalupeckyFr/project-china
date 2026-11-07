@@ -1,10 +1,10 @@
 """2.5D volume targets sampled inside depth silhouettes.
 
 Pure geometry over the depth matrix; it knows nothing about CSV parsing or
-drawing. Every outline point casts a ray inwards to the middle of the body;
-layers along the ray are spaced by the depth gradient, so they crowd near
-the steep edges and thin out towards flat centres of the torso, head and
-limbs.
+drawing. Every point of the outer outline casts a ray inwards to the middle
+of the body. Rays only form a continuous coordinate grid that morphs between
+keyframes; particles sit at random continuous positions on them with density
+``(1 - inward)^2.5``, so the interior is a diffuse haze without contour lines.
 """
 
 from collections.abc import Sequence
@@ -18,10 +18,10 @@ from project_china.frames import DepthFrame
 from project_china.morph import MORPH_POINT_COUNT, ContourShape, smoothstep
 from project_china.selection import DepthSelection
 
-VOLUME_LAYERS = 12
-_RAY_SAMPLES = 24
+VOLUME_LAYERS = 16
+# Exponent of the stochastic Fresnel density P = (1 - inward)^FRESNEL_POWER.
+FRESNEL_POWER = 2.5
 _RAY_STEP = 0.5
-_GRADIENT_FLOOR = 0.25
 _MIN_REACH_WEIGHT = 0.5
 
 _Points = NDArray[np.float64]
@@ -30,7 +30,7 @@ _Values = NDArray[np.float64]
 
 @dataclass(frozen=True)
 class VolumeShape:
-    """Outline points with depth-weighted layers along inward rays.
+    """Outline points with evenly spaced lookup points along inward rays.
 
     ``layers[i]`` runs from the edge at ``outline[i]`` towards the middle
     of the body; ``reach[i]`` is the ray length in grid pixels.
@@ -61,8 +61,8 @@ class VolumePicks:
     """Fixed sampling coordinates of volume particles.
 
     ``along`` selects an outline position by the cumulative ray length,
-    ``inward`` the position between the edge layer (0) and the deepest
-    layer (1).
+    ``inward`` the normalised distance from the edge (0) to the middle of
+    the body (1). ``inward`` is drawn continuously, never from fixed layers.
     """
 
     along: _Values
@@ -74,37 +74,18 @@ class VolumePicks:
 
 
 def volume_picks(count: int, seed: int = 7) -> VolumePicks:
+    """Stochastic picks with density ``(1 - inward)^FRESNEL_POWER``.
+
+    Inverse transform sampling of that density gives
+    ``inward = 1 - (1 - u)^(1 / (FRESNEL_POWER + 1))`` for uniform ``u``.
+    """
     if count < 0:
         raise ValueError("Volume particle count must not be negative.")
     generator = np.random.default_rng(seed)
     along = (np.arange(count) + generator.random(count)) / max(count, 1)
-    return VolumePicks(along, generator.random(count))
-
-
-def depth_gradient(depths: NDArray[np.float64], mask: NDArray[np.bool_]) -> _Values:
-    """Depth slope per grid pixel using only neighbours inside ``mask``."""
-    return np.hypot(_axis_gradient(depths, mask, 1), _axis_gradient(depths, mask, 0))
-
-
-def _axis_gradient(
-    depths: NDArray[np.float64], mask: NDArray[np.bool_], axis: int
-) -> _Values:
-    difference = np.diff(depths, axis=axis)
-    valid = np.logical_and(
-        np.take(mask, range(1, mask.shape[axis]), axis=axis),
-        np.take(mask, range(mask.shape[axis] - 1), axis=axis),
-    )
-    difference = np.where(valid, difference, 0.0)
-    pad_after = [(0, 0), (0, 0)]
-    pad_before = [(0, 0), (0, 0)]
-    pad_after[axis] = (0, 1)
-    pad_before[axis] = (1, 0)
-    forward = np.pad(difference, pad_after)
-    backward = np.pad(difference, pad_before)
-    forward_valid = np.pad(valid, pad_after)
-    backward_valid = np.pad(valid, pad_before)
-    count = forward_valid.astype(np.float64) + backward_valid
-    return np.where(count > 0, (forward + backward) / np.maximum(count, 1), 0.0)
+    uniform = generator.random(count)
+    inward = 1 - (1 - uniform) ** (1 / (FRESNEL_POWER + 1))
+    return VolumePicks(along, inward)
 
 
 def _pixels(
@@ -150,15 +131,14 @@ def build_volume(
     shape: ContourShape,
     depths: NDArray[np.float64],
     mask: NDArray[np.bool_],
-    gradient: _Values,
     max_reach: float,
     count: int = MORPH_POINT_COUNT,
 ) -> VolumeShape:
-    """Sample layers on inward rays of one contour.
+    """Sample evenly spaced lookup points on inward rays of one contour.
 
     Each ray ends halfway across the body (capped by ``max_reach``), so rays
-    from opposite edges meet in the middle. Layers sit at equal quantiles of
-    ``floor + slope``, which crowds them where the surface turns away.
+    from opposite edges meet in the middle. The even spacing carries no
+    density; particles interpolate continuously between the lookup points.
     """
     outline = shape.resample(count)
     normals = _inward_normals(outline, mask)
@@ -171,33 +151,9 @@ def build_volume(
     reach = np.minimum(exit_distance / 2, max_reach)
     reach[~np.any(normals, axis=1)] = 0
 
-    samples = (np.arange(_RAY_SAMPLES) + 0.5) / _RAY_SAMPLES
-    ray_points = (
-        outline[:, None, :]
-        + normals[:, None, :] * (reach[:, None] * samples[None, :])[..., None]
-    )
-    rows, columns, valid = _pixels(ray_points, mask.shape)
-    slope = np.where(valid, gradient[rows, columns], 0.0)
-    scale = np.median(gradient[mask]) if mask.any() else 0.0
-    weight = _GRADIENT_FLOOR + (slope / scale if scale > 0 else np.zeros_like(slope))
-    cumulative = np.cumsum(weight, axis=1)
-    cumulative = np.concatenate(
-        (np.zeros((len(outline), 1)), cumulative / cumulative[:, -1:]), axis=1
-    )
-
-    quantiles = (np.arange(VOLUME_LAYERS) + 0.5) / VOLUME_LAYERS
-    segment = np.clip(
-        (cumulative[:, None, :] < quantiles[None, :, None]).sum(axis=2) - 1,
-        0,
-        _RAY_SAMPLES - 1,
-    )
-    low = np.take_along_axis(cumulative, segment, axis=1)
-    high = np.take_along_axis(cumulative, segment + 1, axis=1)
-    within = (quantiles[None, :] - low) / np.maximum(high - low, 1e-12)
-    fractions = (segment + within) / _RAY_SAMPLES
-
+    fractions = np.linspace(0.0, 1.0, VOLUME_LAYERS)
     layers = outline[:, None, :] + normals[:, None, :] * (
-        reach[:, None] * fractions
+        reach[:, None] * fractions[None, :]
     )[..., None]
     outline_depth = _depth_at(
         depths,
@@ -226,14 +182,11 @@ def build_volumes(
         return ()
     depths = np.asarray(frame.depths, dtype=np.float64)
     mask = selection.mask != 0
-    gradient = depth_gradient(depths, mask)
     # The zero border keeps the transform finite when the mask fills the grid.
     padded = cv2.copyMakeBorder(selection.mask, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
     inscribed = cv2.distanceTransform(padded, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
     max_reach = 1.5 * float(inscribed.max()) + 1
-    return tuple(
-        build_volume(shape, depths, mask, gradient, max_reach, count) for shape in shapes
-    )
+    return tuple(build_volume(shape, depths, mask, max_reach, count) for shape in shapes)
 
 
 VolumePair = tuple[VolumeShape | None, VolumeShape | None]

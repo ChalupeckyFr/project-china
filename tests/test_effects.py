@@ -125,9 +125,12 @@ def test_spring_lags_behind_a_jump_and_overshoots() -> None:
         effect.update(16, ((200, 120),))
         trail.append(effect.particle_positions[0][0])
 
+    # Stiffness 0.18 / damping 0.80: still behind the target two ticks
+    # after the jump, then a visible overshoot that settles.
     assert trail[0] < 120
-    assert trail[2] < 170
-    assert max(trail) > 205
+    assert trail[1] < 150
+    assert trail[2] < 180
+    assert 205 < max(trail) < 260
     assert abs(trail[-1] - 200) <= 3
 
 
@@ -173,19 +176,23 @@ def test_near_particles_are_larger_and_brighter_than_far_ones() -> None:
 
 
 def test_volume_particles_follow_volume_targets() -> None:
-    effect = StarEffect((320, 240), 4, 6)
+    effect = StarEffect((320, 240), 40, 60)
     body = BodyTargets(
         np.array(((60.0, 60.0),)),
         np.array((900.0,)),
         np.array(((200.0, 150.0),)),
         np.array((900.0,)),
     )
-    _settle(effect, body)
+    _settle(effect, body, 600)
 
     positions = effect.particle_positions
-    assert effect.particle_count == 10
-    assert all(math.dist(position, (60, 60)) < 3 for position in positions[:4])
-    assert all(math.dist(position, (200, 150)) < 3 for position in positions[4:])
+    assert effect.particle_count == 100
+    outline = [math.dist(position, (60, 60)) for position in positions[:40]]
+    volume = [math.dist(position, (200, 150)) for position in positions[40:]]
+    assert 1.2 <= min(outline) and max(outline) <= 2.8
+    # Volume particles scatter 2-4 px so they never align into ghost lines.
+    assert 1.7 <= min(volume) and max(volume) <= 4.3
+    assert sum(volume) / len(volume) > sum(outline) / len(outline) + 0.7
 
 
 @pytest.mark.parametrize("count", (-1, -10))

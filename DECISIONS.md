@@ -347,7 +347,7 @@ stav `navrh` nebo `ke-schvaleni`.
 - Důvod: k = 0,15 m by vyplnilo asi 6 cm širokou mezeru mezi visící paží a trupem a vznikla by blána. Kubický easing měl uprostřed pohybu dvojnásobnou rychlost oproti `sin²` a porušil test plynulosti obrysu mezi snímky (12 px > 10 px). Obě volby leží v rámci zadání.
 - Důsledky: CSV i API zůstávají beze změny, ale `examples/human_motion.csv` bylo nutné přegenerovat. Model už nemá uši ani jednotlivé prsty. Hloubkový objem zatím renderer nevyužívá (doplněno v [DEC-018](#dec-018)). Požadavky na fyziku částic (pružina, odpuzování, částice uvnitř objemu) z předchozí zprávy člověka nahradilo toto zadání a nejsou realizovány (realizovány později v [DEC-018](#dec-018)).
 - Stav: prijato
-- Nahrazuje / Nahrazeno: Částečně [DEC-014](DECISIONS.md#dec-014), pouze v modelované anatomii a pohybu / –.
+- Nahrazuje / Nahrazeno: Částečně [DEC-014](DECISIONS.md#dec-014), pouze v modelované anatomii a pohybu / částečně [DEC-019](#dec-019) v hloubkovém profilu.
 - Schválení:
   - Rozsah: Úprava generátoru syntetického člověka podle zadání člověka; číselné parametry v povolených rozmezích a jednotka faktoru smin jsou volbou agenta. Smazání a přegenerování `examples/human_motion.csv` člověk výslovně povolil.
   - Revize: Pracovní kopie nad HEAD `51c92cf`; SHA-256 `src/project_china/synthetic_human.py`: `1498246E0588AC6108D8526806D3BFF063D37745BB1127992E6DF2531F598DED`, `tests/test_synthetic_human.py`: `7CAB28A50CB454A9F7B4FB8B7402FB7D4797A3AD437B94FBDAB4634F590F6A57`.
@@ -365,10 +365,28 @@ stav `navrh` nebo `ke-schvaleni`.
 - Důvod: Objekt 4×4 objem nepotřebuje a s menším počtem částic zůstává jeho obrys čitelný. Min/max na snímek funguje pro libovolný rozsah hloubek bez ladění. Gaussovské skvrny umožní subpixelovou polohu a plynulou změnu velikosti; rotující jitter rozbije rastr bez blikání. Všechny číselné volby leží v zadaných rozmezích.
 - Důsledky: Pružina nahrazuje lineární přitažení 0,08 z [DEC-009](#dec-009); náběh 180 ms a uvolnění 700 ms zůstávají. `StarEffect.update` přijímá `BodyTargets` i prostou posloupnost bodů. Nativní okno nebylo ověřeno.
 - Stav: prijato
-- Nahrazuje / Nahrazeno: Částečně [DEC-009](#dec-009), pouze v koeficientu přitažení částic / –.
+- Nahrazuje / Nahrazeno: Částečně [DEC-009](#dec-009), pouze v koeficientu přitažení částic / částečně [DEC-019](#dec-019) ve výběru vrstev objemu, koeficientech pružiny a jitteru objemových částic.
 - Schválení:
   - Rozsah: Úprava rendereru a částicového systému podle zadání člověka; číselné parametry v povolených rozmezích, volitelnost objemu a normalizace hloubky jsou volbou agenta.
   - Revize: Pracovní kopie nad HEAD `51c92cf`; SHA-256 `src/project_china/volume.py`: `80E1D1E63AF89299743DE2FC52672F06A87AF6D1EB465E98D472227107D2F4E1`, `src/project_china/effects.py`: `D5CE08D90EFBD1AC36DDE60F3FF38FEC9945A1622766817694E8D1F9E00BDE14`, `src/project_china/demo.py`: `E5E97E77CBA8A46D84179F15C0A50428E2F9346B03EB3978284684B7697DB3ED`, `runHuman.ps1`: `2B34B1726A7478B31B23A2F887923BF6D9F3DF4CCD79873ACDE5C7A6453CE4CD`, `tests/test_volume.py`: `778E5FA1CC33312D65D03756693D26F94AD42026CD907D8F98C68E59E8712065`, `tests/test_effects.py`: `504F8EAAF71519FE61ACCC1712841D14F56829D3BD3A3417EEF597CD0A46E39E`, `tests/test_demo.py`: `F0E152DF02D811A51EC8D427D85BF18B2A6A6A696552207568894C0E0D98A93D`.
+  - Schválil: člověk
+  - Datum: 2026-11-07
+  - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize.
+
+## DEC-019
+
+- Předmět: Plynulý hloubkový profil bez švů a stochastický objem částic
+- Typ: schvaleni-rozsahu
+- Kontext: Uvnitř postavy byly vidět ostré čáry, vrstevnice a obrysy segmentů. Člověk zadal: hloubku počítat až ze sloučeného SDF celé postavy (smin) jako hladký sférický nebo parabolický spád bez celočíselného zaokrouhlení; v rendereru odstranit prahování gradientu, vysokou hustotu jen na skutečné vnější hraně a vnitřek vzorkovat stochasticky s pravděpodobností `P = (1 − norm_dist_from_edge)^2,5`; jitter vnitřních částic ±2–4 px a pružinu stiffness 0,18, damping 0,80.
+- Varianty: Profil z přímé vzdálenosti od okraje, nebo z lokální poloviční šířky; sférický, nebo superelipsový spád; stochastické body losované každý snímek znovu, nebo pevné náhodné souřadnice na paprscích.
+- Výsledek: Agent zvolil: hloubku `rovina − 0,75 · R · sqrt(1 − (1 − t)²)`, kde `t` je vzdálenost od okraje ze sloučeného SDF (vyhlazená σ 2 px) dělená 85 % lokální poloviční šířky `R` (největší vepsaný kruh, vyhlazený σ 3 px); roviny segmentů vážené blízkostí a vyhlazené σ 4 px; nos jako gaussovský reliéf místo segmentu siluety; hrudník a hlava už nemají vlastní hloubkový poloměr. Objemové částice mají pevné náhodné spojité souřadnice `t = 1 − (1 − u)^(1/3,5)` (inverzní transformace hustoty `(1 − t)^2,5`) na paprscích dovnitř obrysu; 16 rovnoměrných bodů na paprsku slouží jen k interpolaci. Jitter objemu 2–4 px vzniká lineárním přemapováním losování obrysu (1,5–2,5 px), takže se nemění pořadí náhodných čísel.
+- Důvod: Profil z přímé vzdálenosti od okraje tvořil hřbet podél os končetin a trupu; lokální šířka s plochým vrcholem jej odstraní a je spojitá přes klouby. Superelipsa zvýšila počet pixelů s |laplaciánem| nad 0,5. Nové losování každý snímek by posílalo částice přes celé tělo; pevné souřadnice na morfovaných paprscích zachovávají plynulý pohyb. Všechny číselné volby leží v zadaných rozmezích.
+- Důsledky: `examples/human_motion.csv` bylo nutné přegenerovat. Pružina 0,18/0,80 přestřeluje skok o 100 px asi o 47 px; to plyne ze zadaných koeficientů. Funkce `depth_gradient` a parametr gradientu v `build_volume` byly odstraněny. Nativní okno nebylo ověřeno.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: Částečně [DEC-017](#dec-017) v hloubkovém profilu a [DEC-018](#dec-018) ve vrstvách objemu, pružině a jitteru objemu / –.
+- Schválení:
+  - Rozsah: Oprava generátoru a rendereru podle zadání člověka; číselné parametry v povolených rozmezích, tvar profilu a pevné náhodné souřadnice jsou volbou agenta. Smazání a přegenerování `examples/human_motion.csv` člověk výslovně povolil.
+  - Revize: Pracovní kopie nad HEAD `35983a2`; SHA-256 `src/project_china/synthetic_human.py`: `0496BE035F81A05CE52A81BF6F67450B870D7C81C248965F8C2573294D531554`, `src/project_china/volume.py`: `4D909594E95EEF2C1462857FBF00FEF39E76CD32D59F9234C4A1444A2C6D2946`, `src/project_china/effects.py`: `EA5F6E1E392A7B1ABC4A863453B192218CF361401AAA606561DFADC462E3C862`, `tests/test_synthetic_human.py`: `9D9B8C98AF5E91C800761906E8C0A7866E70F70018C2128D3C0C338B9E484002`, `tests/test_volume.py`: `52E8C6B38BCDD92F1CB999824DFA4BAE0A881C60E8EE8076A2BC5D815A06B8E6`, `tests/test_effects.py`: `9F207373CB5836C52071A8A33B48DD921C1A9F5B6FF290DFA9370C9A131754C0`.
   - Schválil: člověk
   - Datum: 2026-11-07
   - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize.

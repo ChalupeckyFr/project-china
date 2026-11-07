@@ -8,7 +8,7 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 
 - Fáze: `akceptace-prirustku`
 - Od: 2026-11-06
-- Poslední změna fáze: 2.5D objem, pružinová fyzika a turbulence v rendereru T-017 jsou technicky ověřeny
+- Poslední změna fáze: odstranění vnitřních čar a vrstevnic T-018 je technicky ověřeno
 
 ## Aktivní přírůstek
 
@@ -16,14 +16,14 @@ Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
 
 ## Další krok
 
-Člověk může spustit `runHuman.ps1` a posoudit objemové vykreslení, dobíhání hvězd a víření pozadí (T-017).
+Člověk může spustit `runHuman.ps1` a posoudit difuzní objem bez vnitřních čar a novou pružinu (T-018).
 
 ## Bod pokračování
 
 - Aktivní úkol: žádný
-- Poslední dokončená činnost: renderer s 2.5D objemem, pružinou a turbulencí podle T-017 (předtím anatomie T-016)
-- Neověřené změny ve worktree: necommitnuté T-016 a T-017; lidské posouzení nového vzhledu; nativní okno, skutečná kamera a produkční zařízení nebyly ověřeny
-- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-016 a T-017
+- Poslední dokončená činnost: plynulý hloubkový profil a stochastický objem podle T-018 (předtím T-017 a T-016, commit `35983a2`)
+- Neověřené změny ve worktree: necommitnutá T-018; lidské posouzení nového vzhledu; nativní okno, skutečná kamera a produkční zařízení nebyly ověřeny
+- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-018
 
 ## Otevřené otázky
 

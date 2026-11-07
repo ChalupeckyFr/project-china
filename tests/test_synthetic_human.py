@@ -172,6 +172,24 @@ def test_depth_falls_off_smoothly_from_segment_centres() -> None:
     assert max(horizontal.max(), vertical.max()) < 8
 
 
+@pytest.mark.parametrize("frame_index", (0, 30, 60, 90, 119))
+def test_depth_has_no_seams_between_body_segments(frame_index: int) -> None:
+    depths = np.asarray(human_frame(frame_index).depths, dtype=np.float64)
+    inner = cv2.erode(_mask(frame_index).astype(np.uint8), np.ones((7, 7), np.uint8)) != 0
+    # Face relief (nose, eye sockets) is deliberate, so the head is skipped.
+    inner[: _row(0.66)] = False
+
+    curvature = np.abs(cv2.Laplacian(depths, cv2.CV_64F))[inner]
+    # Per-segment depth before the union peaked at 18 along seams and axes.
+    assert curvature.max() < 1.5
+
+
+def test_depths_are_not_rounded_to_whole_units() -> None:
+    depths = np.asarray(human_frame(30).depths, dtype=np.float64)
+    body = depths[_mask(30)]
+    assert np.count_nonzero(body != np.round(body)) > 0.95 * body.size
+
+
 def test_arm_motion_eases_in_and_out() -> None:
     raised = [human_pose(index).raised for index in range(FRAME_COUNT)]
     steps = np.abs(np.diff(raised + raised[:1]))

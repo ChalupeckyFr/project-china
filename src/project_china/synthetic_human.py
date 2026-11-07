@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
 
+import cv2
 import numpy as np
 from numpy.typing import NDArray
 
@@ -20,9 +21,10 @@ _PIXEL_SIZE = _VIEW_WIDTH / WIDTH
 _VIEW_TOP = 1.82
 _FloatMap = NDArray[np.float64]
 _Point = tuple[float, float, float]
+_Radii = tuple[float, float]
 
 # Body dimensions in metres; the camera looks along +z, smaller z is closer.
-HEAD_RADII: _Point = (0.082, 0.112, 0.088)
+HEAD_RADII: _Radii = (0.082, 0.112)
 HEAD_WIDTH = 2 * HEAD_RADII[0]
 NECK_WIDTH = 0.46 * HEAD_WIDTH
 SHOULDER_WIDTH = 0.41
@@ -34,8 +36,17 @@ TORSO_HEIGHT = _SHOULDER_HEIGHT - _CROTCH_HEIGHT
 # Polynomial smooth-minimum factor, expressed in head widths (about 2.5 cm).
 SMIN_K = 0.15
 _BLEND = SMIN_K * HEAD_WIDTH
-_DEPTH_BLEND = 0.050
 _EDGE_FALLOFF = 0.010
+# Depth bulge is this fraction of the local half-width (cylindrical profile).
+DEPTH_RATIO = 0.75
+# The profile reaches its flat top at this fraction of the half-width, so the
+# ridge of the distance field along each axis never shows as a crease.
+_AXIS_PLATEAU = 0.85
+# Gaussian sigmas in grid pixels smoothing the edge distance, thickness and
+# segment planes.
+_EDGE_SMOOTHING = 2.0
+_THICKNESS_SMOOTHING = 3.0
+_PLANE_SMOOTHING = 4.0
 
 REST_ARM_ANGLE = 8.0
 RAISED_ARM_ANGLE = 158.0
@@ -99,8 +110,9 @@ def _smin(first: _FloatMap, second: _FloatMap, k: float) -> _FloatMap:
 
 @dataclass(frozen=True)
 class _Segment:
+    """Signed 2D distance of one body part and the depth plane of its axis."""
+
     distance: _FloatMap
-    surface: _FloatMap
     plane: _FloatMap
 
 
@@ -108,10 +120,10 @@ def _ellipsoid(
     x: _FloatMap,
     y: _FloatMap,
     center: _Point,
-    radii: _Point,
+    radii: _Radii,
     angle: float = 0.0,
 ) -> _Segment:
-    """Ellipse silhouette with a spherical depth profile."""
+    """Ellipse silhouette; ``center[2]`` is the depth of its middle plane."""
     dx, dy = x - center[0], y - center[1]
     cosine, sine = math.cos(angle), math.sin(angle)
     local_x = (cosine * dx + sine * dy) / radii[0]
@@ -123,9 +135,7 @@ def _ellipsoid(
         k0 * (k0 - 1) / np.maximum(k1, 1e-12),
         -min(radii[0], radii[1]),
     )
-    plane = np.full_like(x, center[2])
-    surface = plane - radii[2] * np.sqrt(np.maximum(0, 1 - k0 * k0))
-    return _Segment(distance, surface, plane)
+    return _Segment(distance, np.full_like(x, center[2]))
 
 
 def _capsule(
@@ -135,9 +145,8 @@ def _capsule(
     end: _Point,
     start_radius: float,
     end_radius: float,
-    thickness: float = 0.85,
 ) -> _Segment:
-    """Tapered capsule with a cylindrical depth profile around its axis."""
+    """Tapered capsule; its plane follows the depth of the axis."""
     axis_x, axis_y = end[0] - start[0], end[1] - start[1]
     length = math.hypot(axis_x, axis_y)
     if length <= abs(start_radius - end_radius):
@@ -161,38 +170,76 @@ def _capsule(
     )
 
     position = np.clip(along / length, 0, 1)
-    radius = start_radius + (end_radius - start_radius) * position
-    axis_distance = np.hypot(across, along - position * length)
-    plane = start[2] + (end[2] - start[2]) * position
-    surface = plane - thickness * np.sqrt(
-        np.maximum(0, radius * radius - axis_distance * axis_distance)
-    )
-    return _Segment(distance, surface, plane)
+    return _Segment(distance, start[2] + (end[2] - start[2]) * position)
+
+
+def _masked_blur(values: _FloatMap, mask: NDArray[np.bool_], sigma: float) -> _FloatMap:
+    """Gaussian blur that only averages pixels inside ``mask``."""
+    weight = mask.astype(np.float64)
+    total = cv2.GaussianBlur(values * weight, (0, 0), sigma)
+    norm = cv2.GaussianBlur(weight, (0, 0), sigma)
+    return np.where(mask, total / np.maximum(norm, 1e-12), 0.0)
+
+
+def local_half_width(inside: _FloatMap) -> _FloatMap:
+    """Radius of the largest inscribed disc covering each pixel.
+
+    ``inside`` is the distance to the outer silhouette in grid pixels (zero
+    outside). The result is the half-width of the body part a pixel belongs
+    to, so it is constant across a limb instead of peaking on its axis.
+    """
+    radius = np.zeros_like(inside)
+    for size in range(1, int(np.ceil(inside.max())) + 1):
+        centres = (inside >= size).astype(np.uint8)
+        disc = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * size + 1,) * 2)
+        radius[cv2.dilate(centres, disc) != 0] = size
+    return np.maximum(radius, inside)
 
 
 class _Body:
-    """Blends segment silhouettes with smin and keeps the nearest surface."""
+    """Unites segment silhouettes with smin into one signed distance field.
+
+    Depth is derived only after the union, from the distance to the outer
+    silhouette, so overlapping segments leave no seams inside the body.
+    """
 
     def __init__(self, shape: tuple[int, int]) -> None:
         self.distance = np.full(shape, np.inf)
-        self.front = np.full(shape, np.inf)
         self._plane_sum = np.zeros(shape)
         self._weight_sum = np.zeros(shape)
 
     def add(self, segment: _Segment, blend: float = _BLEND) -> None:
         self.distance = _smin(self.distance, segment.distance, blend)
-        surface = np.where(segment.distance <= 0, segment.surface, np.inf)
-        self.front = _smin(self.front, surface, _DEPTH_BLEND)
         weight = np.exp(-np.maximum(segment.distance, 0) / _EDGE_FALLOFF)
         self._plane_sum += weight * segment.plane
         self._weight_sum += weight
 
     def depth_surface(self) -> _FloatMap:
-        """Front surface; blended fillets take the weighted edge plane."""
+        """Front surface in metres; ``inf`` outside the silhouette.
+
+        A cylinder of radius ``R`` seen from the front bulges by
+        ``sqrt(R^2 - (R - d)^2)`` at distance ``d`` from its edge. Here ``d``
+        comes from the single smin-united distance field and ``R`` is the
+        smoothed local half-width; the profile tops out slightly before the
+        axis, so the ridge of the distance field leaves no line along limbs
+        and the surface stays continuous across joints.
+        """
         inside = self.distance <= 0
-        fillet = self._plane_sum / np.maximum(self._weight_sum, 1e-12)
-        front = np.where(np.isfinite(self.front), self.front, fillet)
-        return np.where(inside, front, np.inf)
+        edge = np.where(inside, -self.distance, 0.0) / _PIXEL_SIZE
+        half_width = np.maximum(
+            _masked_blur(local_half_width(edge), inside, _THICKNESS_SMOOTHING), 1.0
+        )
+        rounded_edge = _masked_blur(edge, inside, _EDGE_SMOOTHING)
+        towards_axis = np.clip(rounded_edge / (_AXIS_PLATEAU * half_width), 0, 1)
+        bulge = (
+            DEPTH_RATIO
+            * half_width
+            * _PIXEL_SIZE
+            * np.sqrt(1 - (1 - towards_axis) ** 2)
+        )
+        plane = self._plane_sum / np.maximum(self._weight_sum, 1e-12)
+        plane = _masked_blur(plane, inside, _PLANE_SMOOTHING)
+        return np.where(inside, plane - bulge, np.inf)
 
 
 def _extend(
@@ -231,13 +278,13 @@ def _arm(
     girdle_start = (torso_x + side * 0.060, _SHOULDER_HEIGHT - 0.020, 0.000)
     body.add(_capsule(x, y, neck_base, trapezius_end, 0.036, 0.032))
     body.add(_capsule(x, y, girdle_start, shoulder, 0.060, 0.052))
-    body.add(_ellipsoid(x, y, shoulder, (0.058, 0.062, 0.062)))
+    body.add(_ellipsoid(x, y, shoulder, (0.058, 0.062)))
     body.add(_capsule(x, y, shoulder, elbow, 0.052, 0.039))
     body.add(_capsule(x, y, elbow, wrist, 0.041, 0.027))
 
     palm = _extend(wrist, forearm_direction, 0.085, -0.004)
     angle = math.atan2(forearm_direction[1], forearm_direction[0]) - math.pi / 2
-    body.add(_ellipsoid(x, y, palm, (0.044, 0.092, 0.022), angle))
+    body.add(_ellipsoid(x, y, palm, (0.044, 0.092), angle))
 
 
 def human_frame(frame_index: int) -> DepthFrame:
@@ -257,7 +304,7 @@ def human_frame(frame_index: int) -> DepthFrame:
             x,
             y,
             (torso_x, 0.310, 0.005),
-            (0.180 * pose.chest_scale, 0.220, 0.115 * pose.chest_scale),
+            (0.180 * pose.chest_scale, 0.220),
         )
     )
     body.add(
@@ -265,16 +312,15 @@ def human_frame(frame_index: int) -> DepthFrame:
             x,
             y,
             (0.8 * torso_x + 0.2 * hips_x, 0.110, 0.005),
-            (WAIST_WIDTH / 2, 0.220, 0.098),
+            (WAIST_WIDTH / 2, 0.220),
         )
     )
-    body.add(_ellipsoid(x, y, (hips_x, -0.060, 0.008), (0.170, 0.165, 0.108)))
+    body.add(_ellipsoid(x, y, (hips_x, -0.060, 0.008), (0.170, 0.165)))
     body.add(
         _capsule(x, y, (torso_x, 0.500, 0.010), (head_x, 0.670, 0.000),
                  NECK_WIDTH / 2, NECK_WIDTH / 2)
     )
     body.add(_ellipsoid(x, y, (head_x, 0.760, 0.0), HEAD_RADII))
-    body.add(_ellipsoid(x, y, (head_x, 0.738, -0.068), (0.013, 0.030, 0.026)))
 
     for side in (-1, 1):
         hip = (hips_x + side * 0.090, -0.135, 0.015)
@@ -283,11 +329,11 @@ def human_frame(frame_index: int) -> DepthFrame:
         body.add(_capsule(x, y, hip, knee, 0.085, 0.052))
         body.add(_capsule(x, y, knee, ankle, 0.056, 0.031))
         body.add(_ellipsoid(x, y, (side * 0.120, -0.868, -0.015),
-                            (0.048, 0.068, 0.070)))
+                            (0.048, 0.068)))
         _arm(body, x, y, pose, side, torso_x)
 
     front = body.depth_surface()
-    # Shallow eye sockets keep a hint of facial relief inside the head outline.
+    # Smooth facial relief instead of separate segments: eye sockets and nose.
     sockets = sum(
         0.005
         * np.exp(
@@ -296,7 +342,8 @@ def human_frame(frame_index: int) -> DepthFrame:
         )
         for side in (-1, 1)
     )
-    front = front + np.where(np.isfinite(front), sockets, 0)
+    nose = -0.012 * np.exp(-((x - head_x) / 0.012) ** 2 - ((y - 0.740) / 0.026) ** 2)
+    front = front + np.where(np.isfinite(front), sockets + nose, 0)
 
     view_bottom = _VIEW_TOP - HEIGHT * _PIXEL_SIZE
     background = 1300 + 15 * (y - view_bottom) / (HEIGHT * _PIXEL_SIZE)

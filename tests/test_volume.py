@@ -1,3 +1,5 @@
+import itertools
+
 import cv2
 import numpy as np
 import pytest
@@ -7,6 +9,7 @@ from project_china.morph import MORPH_POINT_COUNT, morph_contours, prepare_conto
 from project_china.selection import select_depth_regions
 from project_china.synthetic_human import human_frame
 from project_china.volume import (
+    FRESNEL_POWER,
     VOLUME_LAYERS,
     build_volumes,
     morph_volumes,
@@ -48,6 +51,31 @@ def test_volume_is_densest_at_the_edges() -> None:
         return np.count_nonzero((distance > low) & (distance <= high)) / area
 
     assert density(0, 4) > 1.3 * density(8, 40)
+
+
+def test_volume_picks_follow_the_stochastic_fresnel_density() -> None:
+    inward = np.sort(volume_picks(20000).inward)
+
+    # Density (1 - t)^2.5 integrates to the CDF 1 - (1 - t)^3.5.
+    expected = 1 - (1 - inward) ** (FRESNEL_POWER + 1)
+    empirical = (np.arange(len(inward)) + 0.5) / len(inward)
+    assert np.abs(expected - empirical).max() < 0.015
+    # Continuous positions: no particle shares a fixed layer with another.
+    assert len(np.unique(inward)) == len(inward)
+
+
+def test_volume_density_falls_steadily_without_rings() -> None:
+    _, selection, _, _, points, _ = _human_volume(count=20000)
+
+    inscribed = cv2.distanceTransform(selection.mask, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    distance = inscribed[np.rint(points[:, 1]).astype(int), np.rint(points[:, 0]).astype(int)]
+
+    def density(low: float, high: float) -> float:
+        area = np.count_nonzero((inscribed > low) & (inscribed <= high))
+        return np.count_nonzero((distance > low) & (distance <= high)) / area
+
+    shells = [density(low, low + 2) for low in (1, 3, 5, 7)]
+    assert all(outer > inner for outer, inner in itertools.pairwise(shells))
 
 
 def test_volume_outline_matches_the_morphed_contour() -> None:

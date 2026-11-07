@@ -25,11 +25,13 @@ _MAX_SUBSTEPS = 120
 _MAX_TICK_DISTANCE = 40.0
 
 # Spring-damper per reference tick (1/60 s).
-SPRING_STIFFNESS = 0.12
-SPRING_DAMPING = 0.85
+SPRING_STIFFNESS = 0.18
+SPRING_DAMPING = 0.80
 
 # Static scatter around each target, slowly orbiting, in screen pixels.
+# Volume particles scatter more so they never line up into ghost contours.
 JITTER_RANGE = (1.5, 2.5)
+VOLUME_JITTER_RANGE = (2.0, 4.0)
 _JITTER_SPIN = (0.3, 0.9)
 
 # Depth look: far particles are small and faint, near ones 40 % larger.
@@ -117,6 +119,11 @@ class StarEffect:
         self._drift = generator.uniform(-8, 8, (total, 2))
         self._phase = generator.uniform(0, math.tau, total)
         self._jitter_radius = generator.uniform(*JITTER_RANGE, total)
+        low, high = JITTER_RANGE
+        volume_low, volume_high = VOLUME_JITTER_RANGE
+        self._jitter_radius[particle_count:] = volume_low + (
+            self._jitter_radius[particle_count:] - low
+        ) * ((volume_high - volume_low) / (high - low))
         self._jitter_angle = generator.uniform(0, math.tau, total)
         self._jitter_spin = generator.uniform(*_JITTER_SPIN, total) * generator.choice(
             (-1.0, 1.0), total
