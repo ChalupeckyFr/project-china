@@ -1,0 +1,52 @@
+{
+  "theme_mode": "dark",
+  "source_type": "sample",
+  "sample_id": "pose_raise",
+  "csv_path": "",
+  "camera_port": 0,
+  "active_effect": "stars",
+  "shape_shuffle": true,
+  "object_shuffle": true,
+  "shuffle_interval_s": 15,
+  "shuffle_transition_s": 1.0,
+  "shuffle_order": "random",
+  "custom_enabled_effects": [
+    "stars",
+    "rings",
+    "nebula"
+  ],
+  "gravity": 20,
+  "star_count": 600,
+  "shooting_stars_freq": 25,
+  "twinkle_speed": 40,
+  "nebula_swirl": 45,
+  "nebula_color": "light_blue",
+  "orbit_speed": 0,
+  "shape_size": 35,
+  "color_mode": "global",
+  "primary_color": "light_blue",
+  "secondary_color": "white",
+  "part_colors": {
+    "head": {
+      "primary": "light_blue",
+      "secondary": "white"
+    },
+    "torso": {
+      "primary": "purple",
+      "secondary": "pink"
+    },
+    "arms": {
+      "primary": "light_green",
+      "secondary": "yellow"
+    },
+    "legs": {
+      "primary": "orange",
+      "secondary": "red"
+    }
+  },
+  "pattern_style": "solid",
+  "graffiti_brush_color": "red",
+  "graffiti_eraser": false,
+  "graffiti_brush_size": 14,
+  "graffiti_strokes": []
+}
