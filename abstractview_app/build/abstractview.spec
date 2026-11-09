@@ -1,11 +1,20 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
+
+project_root = Path(SPECPATH).resolve().parents[1]
 
 a = Analysis(
-    ['../main.py'],
-    pathex=['src', '.'],
+    [str(project_root / 'abstractview_app' / 'main.py')],
+    pathex=[str(project_root / 'src'), str(project_root)],
     binaries=[],
-    datas=[],
+    datas=[
+        (
+            str(project_root / 'abstractview_app' / 'assets'),
+            'abstractview_app/assets',
+        )
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

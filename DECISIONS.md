@@ -503,3 +503,309 @@ stav `navrh` nebo `ke-schvaleni`.
   - Schválil: člověk
   - Datum: 2026-11-07
   - Podmínky / výjimky: Požadavek není produktovou akceptací nové vizuální revize.
+
+## DEC-024
+
+- Předmět: Rozsah úprav desktopové aplikace AbstractView
+- Typ: schvaleni-rozsahu
+- Kontext: Člověk 2026-11-08 zadal vizuální a výkonnostní úpravy s obrázky 1–6 a videem animace běhu Fištróna.
+- Varianty: Jednotlivé detaily vzhledu a technologie byly výslovně delegovány agentovi; přepínač tématu, reset a výběr efektů mají zůstat v dosavadní podobě mimo konkrétně zadané opravy.
+- Výsledek: Aktivní přírůstek obsahuje [FR-009](SPEC.md#fr-009), [NFR-002](SPEC.md#nfr-002), [AC-002](SPEC.md#ac-002) a [AC-003](SPEC.md#ac-003). Maximální počet 2 500 hvězd je součástí opravy. Produktovou podobu po provedení posoudí člověk.
+- Důvod: Přímé zadání člověka.
+- Důsledky: Nové úkoly T-023 až T-025; původní akceptace T-022 zůstává otevřená.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: – / DEC-026 pouze v části podoby Fištróna a nastavení
+- Schválení:
+  - Rozsah: Přesně FR-009, NFR-002, AC-002 a AC-003 v uvedené revizi SPEC.md; volba konkrétní technologie v těchto mezích je delegována agentovi.
+  - Revize: `SPEC.md` SHA-256 `A8806FF376A933540FD244FA6A81F5DA6A40043B1F1E6B7C8CB84C3C33977711` nad HEAD `ebec925`.
+  - Schválil: člověk
+  - Datum: 2026-11-08
+  - Podmínky / výjimky: Jde o oprávnění k úpravám a ověřování, nikoli o produktovou akceptaci výsledku.
+
+## DEC-025
+
+- Předmět: Způsob vykreslení a omezení práce v hlavním vlákně AbstractView
+- Typ: technicke-rozhodnuti
+- Kontext: Původní pozadí se zvětšovalo z polovičního rozlišení a zaoblené karty se počítaly pomocí velkých polí NumPy při každém snímku; při 2 500 hvězdách renderer indexoval mimo obrys.
+- Varianty: Nový grafický framework; zachování Tk/Pygame s optimalizací; ukládání předem vykreslených celých videí. Zvolená druhá možnost v rámci delegace DEC-024.
+- Výsledek: Pozadí a karty kreslí OpenCV v cílovém rozlišení, statické pozadí a pózy Fištróna se ukládají do omezených pamětí, kola běhu se otáčejí na hotovém spritu, scéna ovládacího panelu běží nejvýše 30 snímků za sekundu a při minimalizaci se nekreslí. Fyzické kamery se vyhledávají na vedlejším vlákně; nabídka virtuální kamery se ukáže ihned. Výběr cílů hvězd indexuje podle počtu dostupných bodů.
+- Důvod: Měření celé scény bez Tk kleslo přibližně z 33 na 5 ms na snímek; samotné pozadí z 610 na 4 ms při 960×720. Není potřeba další runtime závislost pro renderer.
+- Důsledky: Vzhled kresby je plošší a ostřejší; nativní rychlost na různých počítačích a subjektivní vzhled vyžadují lidské posouzení.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: – / DEC-027 pouze v části Fištróna a panelu
+- Schválení:
+  - Rozsah: Technická volba pro FR-009 a NFR-002 v mezích delegace DEC-024.
+  - Revize: Pracovní kopie nad HEAD `ebec925`; SHA-256 `abstractview_app/ui.py` `7A9EA56AE3B146A53FAC7CBF4CCD1757666C7675D08342672DA32121E9867815`, `abstractview_app/scene.py` `0719AB48BE0B8BF0E933EF2CB966C9C3D28AA8F262DE2AC765E03E3FEC0F4D33`, `abstractview_app/renderer.py` `F1E83C10CB616B2F59337A596868D8C0B817F5A9525DE0CF15EFC778A8F54943`, `abstractview_app/samples.py` `B9A686EBCA1D5EC8D2586352A5706735C908EAA2A0044D3D7BDF4DFF8359F989`, `abstractview_app/config.py` `16EBE2559F23C0CDC31A136ECF86AC816FB5DD92345D847DFA1E193D0C9D67F3`.
+  - Schválil: agent-pruvodce (technická volba delegovaná člověkem v DEC-024)
+  - Datum: 2026-11-08
+  - Podmínky / výjimky: Bez závazného číselného cíle FPS; akceptaci vzhledu provede člověk. Podobu Fištróna a panelu v této historické revizi mění [DEC-027](#dec-027).
+
+## DEC-026
+
+- Předmět: Nová podoba Fištróna a skleněné nastavení AbstractView
+- Typ: schvaleni-rozsahu
+- Kontext: Člověk po náhledu z 2026-11-08 žádá dvourozměrný hologram podle neonové kočky z obrázku a chůze z videa, novou polohu podložky a širší prosklené nastavení.
+- Varianty: Rozsah vyplývá z přímého zadání člověka; konkrétní kresba a způsob zobrazení skla jsou technickou volbou agenta.
+- Výsledek: Schváleny [FR-010](SPEC.md#fr-010) a [AC-004](SPEC.md#ac-004). Mění se pouze dotčená část [FR-009](SPEC.md#fr-009); ostatní části [DEC-024](#dec-024) platí dál.
+- Důvod: Konkrétní vizuální zpětná vazba člověka k dosavadnímu náhledu.
+- Důsledky: Nový úkol [T-026](TASKS.md#t-026); předchozí akceptace [T-023](TASKS.md#t-023) a [T-024](TASKS.md#t-024) zůstává otevřená.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-024 pouze v části podoby Fištróna a nastavení / DEC-028 pouze v části podoby Fištróna a přechodu motivu
+- Schválení:
+  - Rozsah: FR-010 a AC-004 v uvedené revizi SPEC.md, technické provedení v mezích tohoto zadání.
+  - Revize: `SPEC.md` SHA-256 `0FE3DEA22C64327AE0BB63DEBFFCB1A8B43929099CE33BF05E7833CE969E5F9B` nad HEAD `ebec925`.
+  - Schválil: člověk
+  - Datum: 2026-11-08
+  - Podmínky / výjimky: Produktová akceptace nové podoby proběhne až po jejím vyzkoušení.
+
+## DEC-027
+
+- Předmět: Vykreslení dvourozměrného hologramu a skleněného panelu
+- Typ: technicke-rozhodnuti
+- Kontext: Původní model používal prostorové stínování a pohyblivý květináč. Tk nepodporuje průhledné pozadí vnořených ovládacích prvků; první způsob skládání skla s NumPy zatěžoval hlavní vlákno.
+- Varianty: Externí animované soubory; nový grafický framework; kreslené sprity v OpenCV a prosklený rám s barevně sladěnými ovládacími prvky. Zvolena třetí možnost bez nové závislosti.
+- Výsledek: Starý prostorový model a květináč byly odstraněny. Fištrón je sada předkreslených plochých neonových póz s pevným projektorem vlevo dole; běh má osm fází a na širokém panelu se zastaví na průhledné části skla vedle ovládání. Skleněný rám ukazuje poušť za panelem, ovládací plocha má sladěný odstín a zůstává čitelná. Složení skla používá OpenCV masku bez pomalého indexování NumPy.
+- Důvod: Měřená část scény s panelem a hologramem při 1100×730 klesla po opravě skla přibližně ze 17,0 na 4,9 ms na snímek; v nativním okně aplikace ukazovala přibližně 28 FPS při otevřeném nastavení.
+- Důsledky: Sklo je v Tk vizuálně simulované; střed ovládací plochy má jednolitý podklad, poušť je přímo vidět v rámu a nad ovládáním. Vzhled a plynulost na zařízení člověka čekají na posouzení.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-025 pouze v části Fištróna a panelu / DEC-029 pouze v části Fištróna a přechodu motivu
+- Schválení:
+  - Rozsah: Technická volba k FR-010 a NFR-002 v mezích DEC-026.
+  - Revize: Pracovní kopie nad HEAD `ebec925`; SHA-256 `abstractview_app/scene.py` `78724E18B5722DBAA950719FCC952231221EEAE12A755F309909EC5984C40DE0`, `abstractview_app/ui.py` `796B51166666B44D94ED0BFB011513F04D8C88663E43D169BA785863B494AB82`.
+  - Schválil: agent-pruvodce (technická volba delegovaná člověkem v DEC-026)
+  - Datum: 2026-11-08
+  - Podmínky / výjimky: Bez garantovaného FPS na jiném zařízení; finální podobu potvrdí člověk.
+
+## DEC-028
+
+- Předmět: Nahrazení neonového Fištróna kreslenou postavou a oprava přepnutí motivu
+- Typ: schvaleni-rozsahu
+- Kontext: Člověk 2026-11-08 označil předchozí podobu za nevyhovující a zadal šest konkrétních póz, rychlejší běh, novou polohu plátna, odstranění textu a plynulé přepnutí motivu.
+- Varianty: Konkrétní technologie kresby a animace byla ponechána agentovi; vzhled a pózy určil člověk.
+- Výsledek: Schváleny [FR-011](SPEC.md#fr-011) a [AC-005](SPEC.md#ac-005). Neonová část FR-010 a AC-004 je nahrazena; dřívější nesouvisející části zadání zůstávají platné.
+- Důvod: Přímá oprava od člověka podle vizuálního náhledu.
+- Důsledky: Nový [T-027](TASKS.md#t-027), dřívější T-026 se neakceptuje v jeho původní podobě.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-026 pouze v části podoby Fištróna a přechodu motivu / –
+- Schválení:
+  - Rozsah: FR-011 a AC-005 v uvedené revizi SPEC.md; technické provedení v jejich mezích.
+  - Revize: `SPEC.md` SHA-256 `3C9D4126F1F8E7B67DB85F8D4FF30D548273685E26B3BD526A4F42C8566B315B` nad HEAD `ebec925`.
+  - Schválil: člověk
+  - Datum: 2026-11-08
+  - Podmínky / výjimky: Zadání dovoluje implementaci a ověření; produktovou akceptaci nového vzhledu provede člověk po vyzkoušení.
+
+## DEC-029
+
+- Předmět: Šest 2D kreslených póz a omezení práce při změně motivu
+- Typ: technicke-rozhodnuti
+- Kontext: Opakované přebarvování všech Tk prvků trvalo v profilu přibližně 53–110 ms na krok. Předchozí procedurální neonový Fištrón neodpovídal zadanému stylu.
+- Varianty: Nový grafický framework; ruční kresba v OpenCV; šest průhledných PNG póz a dosavadní OpenCV skládání. Zvolena třetí možnost v mezích DEC-028.
+- Výsledek: Šest kreslených PNG je uloženo v `abstractview_app/assets`, za běhu se jednou načtou a zmenší do paměti. Chůze používá hotovou pózu s rychlým posunem a lehkým nadskakováním. Poušť se vykresluje průběžně; barvy ovládání se mění v deseti krocích střídavě s renderem scény. Skryté posuvníky svůj obrázek překreslí až při zobrazení. Fyzické kamery se při souběžném skenu serializují.
+- Důvod: Původní paleta blokovala opakovaně na 53–110 ms. Nativní měření nové varianty ukázalo v obou směrech a s otevřeným i zavřeným nastavením jen 0–3 kroky nad 33 ms z 42 oproti 6–12 krokům při souběžném přebarvení a renderu. Obrázkové pózy splňují požadovaný vzhled bez výpočtu prostorového modelu.
+- Důsledky: Výsledný vzhled a subjektivní plynulost ještě posoudí člověk. Barvy Tk ovládání se mění po desetinách přechodu, poušť má jemnější snímkování.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-027 pouze v části podoby Fištróna a přechodu motivu / –
+- Schválení:
+  - Rozsah: Technická volba pro FR-011 a NFR-002 v mezích delegace DEC-028.
+  - Revize: Pracovní kopie nad HEAD `ebec925`; SHA-256 `abstractview_app/scene.py` `5CA969114E633B2783A81AB3A79CB106B0A1F413DBF30705E5F38EF7156014FD`, `abstractview_app/ui.py` `5D123CCECB9D48450AB282AB18245E810AC56CDDDC397BECAF3DFC8497065B5E`, `abstractview_app/samples.py` `8670DC611C192EC6203A5323B402475077C5477794D16EEA606838B85AE1F993`.
+  - Schválil: agent-pruvodce (technická volba delegovaná člověkem v DEC-028)
+  - Datum: 2026-11-08
+  - Podmínky / výjimky: Bez garantovaného FPS na jiném zařízení a bez produktové akceptace.
+
+## DEC-030
+
+- Předmět: Samostatné přesouvatelné panely a nové reakce Fištróna
+- Typ: schvaleni-rozsahu
+- Kontext: Člověk 2026-11-08 ocenil kreslenou podobu, ale zadal změnu úderu, nové pózy u panelu, současně otevřená nastavení s uloženou polohou, opravu nočního vykreslení a oživení plátna.
+- Varianty: Vzhled interakcí určil člověk; technické provedení bylo ponecháno agentovi.
+- Výsledek: Schváleny [FR-012](SPEC.md#fr-012) a [AC-006](SPEC.md#ac-006) v návaznosti na FR-011 a NFR-002.
+- Důvod: Přímé zadání člověka podle nového videa a obrázku.
+- Důsledky: [T-028](TASKS.md#t-028); vizuální akceptace nové revize po vyzkoušení.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-028 pouze v části počtu póz a chování u nastavení a tlačítka / –
+- Schválení:
+  - Rozsah: FR-012 a AC-006 v uvedené revizi SPEC.md; technické detaily v jejich mezích.
+  - Revize: `SPEC.md` SHA-256 `5887F2C9AAE42E3D87E0EFCA8DCD6AFE5C7F49AF20D3B36A206A882B1D48D6A5` nad HEAD `ebec925`.
+  - Schválil: člověk
+  - Datum: 2026-11-08
+  - Podmínky / výjimky: Nejde o akceptaci nové implementace ani oprávnění ke commitu či publikaci.
+
+## DEC-031
+
+- Předmět: Vnořené plovoucí panely a úspornější kreslení interakcí
+- Typ: technicke-rozhodnuti
+- Kontext: Tři souběžně otevřená nastavení potřebují spolehlivý fokus, uloženou polohu a rychlé vykreslení. Tk okna vložená přímo do canvasu se při překrytí nevrstvila podle aktivního panelu.
+- Varianty: Samostatná systémová okna; položky `create_window` v canvasu; rámy uvnitř hlavní scény umístěné přes `place`. Zvolena třetí možnost.
+- Výsledek: Každá skupina nastavení má jediný interní panel se společným záhlavím a obsahem. Pořadí aktivních panelů se ukládá spolu s polohou do JSON. Dvě nové kreslené PNG pózy ukazují záda při změně hodnot a tlak při přesouvání. Úder používá skutečný střed tlačítka; animace prachu předchází změně výstupu o 620 ms. Malé bitmapy posuvníků a tlačítek se kreslí přes OpenCV, během mezikroků motivu se část obrázků nepřepočítává. Poušť přechází plynule, hromadné přebarvení Tk ovladačů probíhá ve čtyřech krocích. Otevření panelu ihned vynutí vykreslení scény.
+- Důvod: Aktivní panel se musí celý překrýt přes ostatní; zkouška v nativním okně potvrdila správné vrstvení. Pózy zůstávají 2D a nevyžadují výpočet 3D modelu. Kratší práce s grafikou snižuje dobu kroků přechodu motivu.
+- Důsledky: Všechny tři panely mohou být otevřené současně, ale na menším monitoru se překrývají a obsah může vyžadovat posun. Při třech otevřených panelech zůstávají čtyři kroky motivu delší než 33 ms z 19 měřených kroků; viz [T-028](TASKS.md#t-028). Vzhled a subjektivní odezvu posoudí člověk.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-029 jen v části počtu póz a způsobu vykreslení malých ovladačů / –
+- Schválení:
+  - Rozsah: Technická volba pro FR-012, AC-006 a NFR-002 v mezích delegace DEC-030.
+  - Revize: Pracovní kopie nad HEAD `ebec925`; SHA-256 `config.py` `5E5084FCB1EC92ED312D2C83B8038E366F45B775AD9187352091157489D25625`, `ui.py` `C636C918F50C1F5116E3CC7022696D4A5879B34FF2D16F7707F9FDDD0B9F8B11`, `scene.py` `84C53379EBD61B0D51C6950CAFACA388F15A7985EACA1AAAF81E73C0EABBA3D6`.
+  - Schválil: agent-pruvodce (technická volba delegovaná člověkem v DEC-030)
+  - Datum: 2026-11-08
+  - Podmínky / výjimky: Produktová akceptace ani výkon na cílovém monitoru z technických testů neplynou.
+
+## DEC-032
+
+- Předmět: Nahrazení hlavního EXE a odstranění pomocných náhledů
+- Typ: schvaleni-operace
+- Kontext: Člověk požádal o jeden přehledný spustitelný soubor v kořeni projektu a odstranění nepotřebných pracovních souborů.
+- Varianty: Další náhledový EXE; aktualizace `abstractview.exe`. Zvolena aktualizace hlavního souboru.
+- Výsledek: Povoleno přepsat `abstractview.exe` ověřenou revizí T-028 a odstranit starší náhledové EXE a dočasné pracovní soubory. Projektová data a uživatelské nastavení zůstávají potřebné.
+- Důvod: Přímé zadání člověka 2026-11-08; více náhledových EXE bylo nepřehledných.
+- Důsledky: Jediným aktuálním spustitelným souborem je `abstractview.exe`; starší náhledy zůstávají popsány v historické evidenci, ale nejsou určeny ke spuštění.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: – / –
+- Schválení:
+  - Rozsah: Přepsání hlavního EXE a odstranění nepotřebných pracovních a náhledových souborů v kořeni projektu; bez commitu a publikace.
+  - Revize: Hlavní EXE SHA-256 `C116AD6170B9E38365C103CB30D5CF221453C896BBF5E9165DD55A1E79455952` nad HEAD `ebec925`.
+  - Schválil: člověk
+  - Datum: 2026-11-08
+  - Podmínky / výjimky: Zachovat soubory potřebné k běhu aplikace, uložené nastavení a zdrojové podklady.
+
+## DEC-033
+
+- Předmět: Zaoblené přesouvané panely, Fištrón u hrany, plátno a přepínač den/noc
+- Typ: schvaleni-rozsahu
+- Kontext: Člověk na videu z 2026-11-09 ukázal opožděný obrys při tažení panelu, požádal o skutečné zaoblení, bližší interakci Fištróna s obsahem, nové pózy na plátně a plynulý přepínač se sluncem a měsícem.
+- Varianty: Vizuální výsledek určil člověk; provedení v rámci desktopové aplikace bylo ponecháno agentovi.
+- Výsledek: Schváleny [FR-013](SPEC.md#fr-013) a [AC-007](SPEC.md#ac-007) v návaznosti na FR-012 a NFR-002.
+- Důvod: Přímé zadání člověka k aktuálnímu EXE.
+- Důsledky: [T-029](TASKS.md#t-029); vizuální akceptace až po vyzkoušení nové revize.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-030 pouze v dotčené vizuální části panelu, plátna a přepínače / –
+- Schválení:
+  - Rozsah: FR-013 a AC-007 v revizi SPEC.md níže; technické provedení v jejich mezích.
+  - Revize: `SPEC.md` SHA-256 `DBE272F1190456D15B614E070B50EFD81C8D4D699B9667CCAEF609163485FC45` nad HEAD `ebec925`.
+  - Schválil: člověk
+  - Datum: 2026-11-09
+  - Podmínky / výjimky: Pokračuje předchozí oprávnění nahradit hlavní `abstractview.exe`; bez produktové akceptace a bez commitu.
+
+## DEC-034
+
+- Předmět: Jediný zaoblený panel, 2D překryv Fištróna a vektorový přepínač dne a noci
+- Typ: technicke-rozhodnuti
+- Kontext: Obrys kreslený do scény se při tažení zpožďoval za skutečným Tk panelem. Fištrón kreslený jen ve scéně zůstával schovaný za panelem. Dřívější obrázkový přepínač zatěžoval přechod motivu.
+- Varianty: Souběžné vykreslování obrysu a panelu; jeden nativně zaoblený Tk rám. Pro Fištróna úplné překreslení scény; malý oříznutý překryv na panelu. Zvoleny druhé možnosti.
+- Výsledek: Plovoucí rám se ve Windows ořezává nativní zaoblenou oblastí; jeho původní samostatný obrys ve scéně se nekreslí. Přes hranu panelu se skládá jen malý výřez 2D sprite, poloha zadní pózy sleduje kurzor. Plátno střídá dvě nové PNG pózy. Přepínač se kreslí jako malý vektorový ovladač se sluncem, měsícem a popisy day/night. Vestavěný `--self-test` používá dočasný soubor nastavení.
+- Důvod: Rám a obsah se musí přesouvat společně; malý 2D výřez a vektorový ovladač nevyžadují další plnoobrazovkové bitmapy.
+- Důsledky: Zaoblení rámu spoléhá na nativní Windows API, které odpovídá cílovému EXE; vzhled a odezvu na cílovém monitoru musí přijmout člověk. Úvodní smoke test před opravou `--self-test` mohl změnit aktivní efekt a otevřené panely v existujícím nastavení; finální self-test již soubor nemění.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-031 pouze v části vykreslení obrysu panelu a motivového přepínače / –
+- Schválení:
+  - Rozsah: Technické provedení [FR-013](SPEC.md#fr-013) a [AC-007](SPEC.md#ac-007) v mezích delegace [DEC-033](#dec-033).
+  - Revize: Pracovní kopie nad HEAD `ebec925`; SHA-256 `ui.py` `5F523FB7224DDAB3A905FADEB5C27D101356FB35D531ED320E2488A4FDCD183A`, `scene.py` `860E36CE358444EC39AE59F55A4E67CBD0B2F83AFCC5E7C92FA54799BE83C788`, `main.py` `83BFEFF89BAF1AC6968A206BAF00EEDEFB96110123DDF4E99247E6425F72F637`; nové PNG `screen_wave` `4FA02BD39F36C62D8135802D4FB1B80F2404BABB2DC100768CFBDB16189C3210` a `screen_hop` `DDBFB27FBD00631B5FEF202D01B7123D4E4F0E21F3FE68D8BD5597480413A65B`.
+  - Schválil: agent-pruvodce (technická volba delegovaná člověkem v DEC-033)
+  - Datum: 2026-11-09
+  - Podmínky / výjimky: Nejde o produktovou akceptaci ani souhlas ke commitu nebo publikaci.
+
+## DEC-037
+
+- Předmět: Odpočinek Fištróna mimo tažení, tabule s názvem efektu a úchop panelů
+- Typ: schvaleni-rozsahu
+- Kontext: Člověk na snímku ukázal částečné překrytí Fištróna panelem a odmítl jeho setrvávání u okna i nefunkční obrysy na tabuli. Požaduje také zřetelné záhlaví místo textu „přetáhni“.
+- Varianty: Produktové chování určil člověk; provedení zůstává v delegaci agenta.
+- Výsledek: Schváleny [FR-015](SPEC.md#fr-015) a [AC-009](SPEC.md#ac-009). Oprava funkce hvězd následuje samostatně po tomto vizuálním přírůstku.
+- Důvod: Přímá produktová zpětná vazba k aktuálnímu hlavnímu EXE.
+- Důsledky: [T-031](TASKS.md#t-031); nový výsledek vyžaduje vizuální posouzení člověka.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-035 pouze v klidové poloze Fištróna a obsahu tabule / –
+- Schválení:
+  - Rozsah: FR-015 a AC-009 v uvedené revizi SPEC.md; jediný hlavní `abstractview.exe`, bez změny funkční logiky hvězd.
+  - Revize: `SPEC.md` SHA-256 `10C29DCE35E6A8C125FA8864577A22F94C39F4614A05ECC6F4E4C670DC0E661D` nad HEAD `ebec925`.
+  - Schválil: člověk
+  - Datum: 2026-11-09
+  - Podmínky / výjimky: Navazuje oprávnění k náhradě jediného hlavního EXE; bez commitu a bez předběžné produktové akceptace.
+
+## DEC-038
+
+- Předmět: Vyhrazený prostor pro odpočinek a jediný text na promítací tabuli
+- Typ: technicke-rozhodnuti
+- Kontext: Plovoucí Tk panel překrýval obrázek Fištróna vykreslený ve scéně. Dosavadní stav `near_panel` udržoval postavu u panelu i po puštění myši. Promítací tabule míchala efekt s animovanou postavou a obrysovými motivy.
+- Varianty: Přeskládat nativní widgety s průhledným překryvem; ponechat Fištróna v klidu doma a panelům vyhradit prostor mimo jeho obrázek. Zvolena druhá možnost.
+- Výsledek: Fištrón odpočívá doma, k panelu přiběhne pouze při tažení. Plovoucí panely začínají nejdříve na x=160 a v úzkém okně se přizpůsobí jejich šířka; kreslené pózy odpočinku a tlačení se do vyhrazeného prostoru vejdou. Tabule kreslí čistou plochu a Tk do ní vkládá aktuální název efektu; dvě staré projekční pózy byly odstraněny. Záhlaví panelu má kontrastní podklad, úchop `⋮⋮` a kurzor pro tažení.
+- Důvod: Zabraňuje částečnému zakrytí postavy nativním widgetem v běžném i úzkém rozložení a odstraňuje nefunkční vizuální vrstvu tabule.
+- Důsledky: Na minimální šířce má panel menší šířku a méně prostoru pro horizontální tažení. Funkční problém hvězd zůstává navazující prací.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-036 v poloze Fištróna u otevřeného panelu a DEC-031 v obsahu tabule / –
+- Schválení:
+  - Rozsah: Technické provedení [FR-015](SPEC.md#fr-015) a [AC-009](SPEC.md#ac-009) v mezích [DEC-037](#dec-037).
+  - Revize: Pracovní kopie nad HEAD `ebec925`; SHA-256 `ui.py` `0D3646E551306AEF4BF1AF47B22111516A4733FF142E5477C8439442FC4301FB`, `scene.py` `5783C830C199CBC47F274815AF09D473008C77A9C824FA528DB85E96D866DBCE`, hlavní `abstractview.exe` `DCCC9814A7C965C52CBEADAD8B34113D3A1587756D6C4EC1C009405FC13C8FAF`.
+  - Schválil: agent-pruvodce (technická volba delegovaná člověkem v DEC-037)
+  - Datum: 2026-11-09
+  - Podmínky / výjimky: Bez produktové akceptace a bez commitu.
+
+## DEC-035
+
+- Předmět: Oprava vizuálních regresí u Fištróna a přechodu motivu
+- Typ: schvaleni-rozsahu
+- Kontext: Člověk po vyzkoušení T-029 označil překryv Fištróna přes panel a přepínání jeho póz při pohybu myší za chybné. Videa z 2026-11-09 ukazují také skokové přebarvení karet a pixelové čáry přepínače.
+- Varianty: Vizuální výsledek určil člověk; technické provedení zůstává v delegaci agenta.
+- Výsledek: Schváleny [FR-014](SPEC.md#fr-014) a [AC-008](SPEC.md#ac-008). Dřívější požadavek na vykukování přes panel se ruší; ostatní funkce plovoucích panelů a plátna trvají.
+- Důvod: Přímá produktová zpětná vazba člověka k aktuálnímu EXE.
+- Důsledky: [T-030](TASKS.md#t-030); výsledek znovu vyžaduje vizuální posouzení člověka.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-033 a DEC-030 pouze v části překryvu a pózy Fištróna u panelu; DEC-034 v části překryvu Fištróna a vektorového přepínače / –
+- Schválení:
+  - Rozsah: FR-014 a AC-008 v revizi SPEC.md níže; průběžné přebarvení a vyhlazení prvků v rámci existující desktopové aplikace.
+  - Revize: `SPEC.md` SHA-256 `97EFF67C26C6E6CAEDED299FC5A011218D6492816F25E053C678DBFF009A8488` nad HEAD `ebec925`.
+  - Schválil: člověk
+  - Datum: 2026-11-09
+  - Podmínky / výjimky: Pokračuje oprávnění nahradit jediný `abstractview.exe` podle DEC-032; bez commitu a bez produktové akceptace opravy před jejím vyzkoušením.
+
+## DEC-036
+
+- Předmět: Stabilní 2D postava mimo panel a společné přebarvení ovládání
+- Typ: technicke-rozhodnuti
+- Kontext: V T-029 se Fištrónův překryv vykresloval nad rámem panelu a při přejezdu myší měnil pózu i výšku. Čtyři barevné kroky panelů a odložené překreslení tlačítek způsobovaly viditelné skoky. Lineární prolnutí textu by uprostřed přechodu zhoršilo čitelnost.
+- Varianty: Opravovat vrstvení překryvu a synchronizaci dvou póz; odstranit překryv a ponechat postavu stabilně vedle panelu. Průběžně vytvářet všechny bitmapy; oddělit časté přebarvení podkladů od méně častého překreslení průhledných prvků. Zvoleny druhé možnosti.
+- Výsledek: Fištrón při otevřeném panelu používá celou přední kreslenou pózu mimo panel, bez reakce polohy či pózy na přejezd myší. Přetahování nadále používá tlačící pózu. Dvě nepoužívané PNG pózy vykukování byly odstraněny. Karty a panely přecházejí přes dvacet mezibarev; průhledná vyhlazená tlačítka a posuvníky obnovují detaily v osmi krocích a jejich podklad se přebarvuje současně s kartou. Dražší obnova detailů a kresba scény probíhají v sousedních snímcích. Text v mezistavech přepne na kontrastní barvu. Přepínač se kreslí ve čtyřnásobném rozlišení a zmenšuje s vyhlazením.
+- Důvod: Jeden stabilní obraz postavy odstraňuje překrývání a blikání; průhledné podklady ruší obdélníkové záplaty bez drahého překreslování každého detailu v každém snímku.
+- Důsledky: V přechodu je krátká změna barvy textu při překročení poloviny, aby zůstal čitelný. Jednotlivé kroky mohou na jiném monitoru trvat déle; produktovou plynulost musí posoudit člověk.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-034 v části překryvu Fištróna a kresby přepínače; DEC-031 v části řídkého přebarvení ovládacích prvků / –
+- Schválení:
+  - Rozsah: Technické provedení [FR-014](SPEC.md#fr-014) a [AC-008](SPEC.md#ac-008) v mezích delegace [DEC-035](#dec-035).
+  - Revize: Pracovní kopie nad HEAD `ebec925`; SHA-256 `ui.py` `78A31F7CE1615434D77B00A203DBE707E7A6E2BBF54FEC931370D4485B800573`, `scene.py` `F4A36759455207F74D92A7A91374F0F9501CF7C01ABF83FA5C897D98FC9D89FF`, `theme.py` `CCA91CD87214BF7BFB09F3E408188F15284503FBC6007C0CFC97DDF5239622C3`, hlavní `abstractview.exe` `BEECA1CBE1D7236B62886F2E6AA35F56329323B7B31A4B48F58CA15E8B91D6BC`.
+  - Schválil: agent-pruvodce (technická volba delegovaná člověkem v DEC-035)
+  - Datum: 2026-11-09
+  - Podmínky / výjimky: Nejde o produktovou akceptaci ani souhlas ke commitu nebo publikaci.
+
+## DEC-039
+
+- Předmět: Odstranění záhlaví a opravy odezvy a perzistence AbstractView
+- Typ: schvaleni-rozsahu
+- Kontext: Člověk na přiloženém obrázku odmítl přidané barevné záhlaví panelu a úchop `⋮⋮`. Současně popsal poskočení pozadí při otevření nastavení, ztrátu velikosti nebo maximalizace po restartu, dlouhou prodlevu Fištrónova spuštění a znovuotevření zavřeného panelu při vypnutí shuffle.
+- Varianty: Produktové chování určil člověk; technické provedení zůstalo v delegaci agenta.
+- Výsledek: Schváleny [FR-016](SPEC.md#fr-016) a [AC-010](SPEC.md#ac-010), včetně náhrady jediného hlavního `abstractview.exe`.
+- Důvod: Přímá produktová zpětná vazba k aktuální revizi aplikace.
+- Důsledky: [T-032](TASKS.md#t-032); výsledek znovu vyžaduje vizuální posouzení člověka.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-037 pouze v požadavku na zřetelné přidané záhlaví; DEC-038 pouze v technickém provedení záhlaví a úchopu / –
+- Schválení:
+  - Rozsah: FR-016 a AC-010 v uvedené revizi SPEC.md; aktualizace jediného hlavního `abstractview.exe`, bez změny logiky obrazových efektů.
+  - Revize: `SPEC.md` SHA-256 `C2B84C6B73F99438898166521EEE5AAABAE3F49FC202BA2C95B0A744EA2D322C` nad HEAD `ebec925`.
+  - Schválil: člověk
+  - Datum: 2026-11-09
+  - Podmínky / výjimky: Bez commitu, publikace a předběžné produktové akceptace.
+
+## DEC-040
+
+- Předmět: Vnitřní nadpis jako úchop, stabilní render pozadí a uložený stav okna
+- Typ: technicke-rozhodnuti
+- Kontext: Samostatná lišta zvětšovala panel a neodpovídala požadovanému vzhledu. Výška kreslené pouště se odvozovala od scrollregionu otevřených panelů, takže změna výšky přepočítala polohu dun. Shuffle bezpodmínečně otevíral svůj panel a spuštění výstupu čekalo 620 ms.
+- Varianty: Ponechat neviditelnou úchopovou lištu; použít stávající vnitřní nadpis. Překreslovat proměnlivě vysoké pozadí; oddělit jeho výšku od panelového scrollregionu. Zvoleny druhé možnosti.
+- Výsledek: Přidané záhlaví a `⋮⋮` byly odstraněny; běžný vnitřní nadpis táhne panel a samostatné `✕` jej zavírá. Pozadí se kreslí ve stabilní výšce nezávislé na otevření panelu. Nastavení ukládá normální geometrii a stav `normal`, `zoomed` nebo `fullscreen`. Vypnutí shuffle zavřený panel neotevře. Akce živého výstupu následuje 180 ms po kliknutí a efekt úderu začíná po 70 ms. Sestavovací specifikace výslovně přibaluje šest PNG póz.
+- Důvod: Zachování ovladatelnosti bez odmítnuté vizuální vrstvy a odstranění přímých příčin všech čtyř funkčních regresí.
+- Důsledky: Při velmi vysokém scrollování se kreslené pozadí rezervuje nejméně do výšky 1 100 px; produktovou odezvu a vzhled musí posoudit člověk.
+- Stav: prijato
+- Nahrazuje / Nahrazeno: DEC-038 pouze v provedení záhlaví a úchopu / –
+- Schválení:
+  - Rozsah: Technické provedení [FR-016](SPEC.md#fr-016) a [AC-010](SPEC.md#ac-010) v mezích [DEC-039](#dec-039).
+  - Revize: Pracovní kopie nad HEAD `ebec925`; SHA-256 `ui.py` `6B0092ECC23DADB5E6D484152D4F0C4365CD6A6BED5D383DD8B16594C27FEAD3`, `config.py` `4C476B06F13AB50CAA5202A7BA00086A909C6B994E189B63335DACB97218F422`, `test_abstractview.py` `DA210B1120626D820ACC83E4EFDB9D33245F6AC1A2CCE50ABB6E247CB62D110F`, `abstractview.spec` `72D91ECC51B46517132D594362545F1872024F2F574E51155DF20869811EB61D`, hlavní `abstractview.exe` `4D53BCD039BA91F4C9E9B7E7E608034329F573E7524E0573B1EAB6B15391245D`.
+  - Schválil: agent-pruvodce (technická volba delegovaná člověkem v DEC-039)
+  - Datum: 2026-11-09
+  - Podmínky / výjimky: Bez produktové akceptace a bez commitu.

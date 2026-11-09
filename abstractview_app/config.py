@@ -70,6 +70,10 @@ class AppSettings:
     active_effect: str = "stars"
     shape_shuffle: bool = False
     object_shuffle: bool = False
+    open_panels: list[str] = field(default_factory=list)
+    panel_positions: dict[str, list[float]] = field(default_factory=dict)
+    window_geometry: str = ""
+    window_state: str = "normal"
 
     # Nastavení shuffle (sdílené mezi tvarovými a objektovými efekty)
     # První hodnota: 60s (1 min), rozsah 15s až 300s (5 min)
@@ -125,6 +129,30 @@ class AppSettings:
             self.sample_id = "pose_raise"
         if self.active_effect not in ALL_EFFECT_KEYS:
             self.active_effect = "stars"
+        panel_ids = ("shape", "object", "shuffle")
+        self.open_panels = [
+            key for key in dict.fromkeys(
+                key for key in self.open_panels if isinstance(key, str)
+            ) if key in panel_ids
+        ] if isinstance(self.open_panels, list) else []
+        if not isinstance(self.panel_positions, dict):
+            self.panel_positions = {}
+        clean_positions: dict[str, list[float]] = {}
+        for key in panel_ids:
+            value = self.panel_positions.get(key)
+            if isinstance(value, list) and len(value) == 2:
+                try:
+                    clean_positions[key] = [
+                        round(max(0.0, min(1.0, float(value[0]))), 4),
+                        round(max(0.0, min(1.0, float(value[1]))), 4),
+                    ]
+                except (TypeError, ValueError):
+                    pass
+        self.panel_positions = clean_positions
+        if not isinstance(self.window_geometry, str) or len(self.window_geometry) > 80:
+            self.window_geometry = ""
+        if self.window_state not in ("normal", "zoomed", "fullscreen"):
+            self.window_state = "normal"
 
         self.shuffle_interval_s = int(max(15, min(300, self.shuffle_interval_s)))
         self.shuffle_transition_s = float(
@@ -187,6 +215,14 @@ class AppSettings:
     def is_graffiti_unlocked(self) -> bool:
         """Graffiti režim se odemkne, když jsou tvary dostatečně zvětšené."""
         return self.shape_size >= GRAFFITI_UNLOCK_SIZE
+
+    @property
+    def uses_secondary_color(self) -> bool:
+        return self.pattern_style in ("brush", "spiral", "dots")
+
+    @property
+    def show_graffiti_editor(self) -> bool:
+        return self.pattern_style == "graffiti" and self.is_graffiti_unlocked
 
     @property
     def computed_shape_count(self) -> int:

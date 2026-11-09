@@ -7,23 +7,23 @@ odkazuj na ně. Pravidla viz [`AGENTS.md`](AGENTS.md), sekce 3.
 ## Fáze
 
 - Fáze: `akceptace-prirustku`
-- Od: 2026-11-06
-- Poslední změna fáze: plné paže, stabilní jas hrudníku, rovnoměrná hustota a tlumení v úvratích T-022 jsou technicky ověřeny
+- Od: 2026-11-09
+- Poslední změna fáze: Oprava [T-032](TASKS.md#t-032) byla implementována a cíleně technicky ověřena; výsledek čeká na vizuální posouzení člověka.
 
 ## Aktivní přírůstek
 
-Demo hloubkové mapy – schválený rozsah viz `DECISIONS.md#dec-001`.
+Vizuální úpravy, stabilita okna a odezva AbstractView – aktuální oprava viz [DEC-039](DECISIONS.md#dec-039), předchozí plovoucí panely viz [DEC-030](DECISIONS.md#dec-030). Dřívější demo hloubkové mapy podle [DEC-001](DECISIONS.md#dec-001) nadále čeká na lidské posouzení T-022.
 
 ## Další krok
 
-Člověk může spustit `runHuman.ps1` (CSV je už přegenerované; po změně generátoru se přegeneruje samo) a posoudit plnost zvednutých paží, klid jasu na hrudníku, rovnoměrnost výplně a zastavení v úvratích (T-022).
+Předložit aktualizovaný jediný `abstractview.exe` a důkazy [T-032](TASKS.md#t-032) k vizuálnímu posouzení člověku; poté prošetřit příležitostné nefungování hvězd jako nový funkční přírůstek.
 
 ## Bod pokračování
 
-- Aktivní úkol: žádný
-- Poslední dokončená činnost: plné paže, stabilní jas, rovnoměrná hustota a omezení zrychlení podle T-022 (předtím T-021 a T-020, necommitnuto; T-019 commit `492c9f8`)
-- Neověřené změny ve worktree: necommitnuté T-020, T-021 a T-022 (CSV přegenerováno, neverzované); lidské posouzení nového vzhledu; nativní okno, skutečná kamera a produkční zařízení nebyly ověřeny
-- Další bezpečný krok: vyčkat na zpětnou vazbu člověka k T-022
+- Aktivní úkol: [T-032](TASKS.md#t-032); přidané záhlaví z [T-031](TASKS.md#t-031) nebylo člověkem přijato.
+- Poslední dokončená činnost: [T-032](TASKS.md#t-032) ověřen cílenými testy a self-testem aktualizovaného hlavního `abstractview.exe` bez změny uživatelského nastavení.
+- Neověřené změny ve worktree: lidská akceptace vzhledu a skutečné plynulosti AbstractView; produkční kamera a zařízení; příležitostná funkční závada hvězd; dřívější lidské posouzení T-022. Pracovní kopie obsahuje necommitnuté změny AbstractView a šest aktuálních PNG póz.
+- Další bezpečný krok: získat vizuální zpětnou vazbu člověka k [AC-010](SPEC.md#ac-010) a poté se věnovat funkci hvězd; ostatní dříve neuzavřené části jsou uvedeny v příslušných úkolech.
 
 ## Otevřené otázky
 

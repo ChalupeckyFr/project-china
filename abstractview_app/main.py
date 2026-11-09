@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 # Skryjeme uvítací výpis Pygame v konzoli
@@ -27,20 +28,24 @@ def _configure_paths() -> None:
 
 _configure_paths()
 
+from abstractview_app.config import SettingsStore
 from abstractview_app.ui import AbstractViewApp
 
 
 def main(argv: list[str] | None = None) -> None:
     args = sys.argv[1:] if argv is None else argv
-    app = AbstractViewApp()
     if "--self-test" in args:
-        out = app.open_output_window()
-        out.render_tick(100.0, 16.0)
-        app.select_effect("rings")
-        out.render_tick(200.0, 16.0)
-        app.select_effect("stars")
-        app.root.after(250, app.shutdown)
-    app.run()
+        with tempfile.TemporaryDirectory(prefix="abstractview-self-test-") as tmp:
+            app = AbstractViewApp(store=SettingsStore(Path(tmp) / "settings.json"))
+            out = app.open_output_window()
+            out.render_tick(100.0, 16.0)
+            app.select_effect("rings")
+            out.render_tick(200.0, 16.0)
+            app.select_effect("stars")
+            app.root.after(250, app.shutdown)
+            app.run()
+        return
+    AbstractViewApp().run()
 
 
 if __name__ == "__main__":

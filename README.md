@@ -15,6 +15,7 @@ v [`AGENTS.md`](AGENTS.md).
 | [`SPEC.md`](SPEC.md) | Účel, rozsah, požadavky, omezení, akceptační kritéria. |
 | [`TASKS.md`](TASKS.md) | Úkoly, závislosti, stav, ověření, důkazy. |
 | [`DECISIONS.md`](DECISIONS.md) | Rozhodnutí, důvody, záznamy schválení. |
+| [`docs/evidence`](docs/evidence) | Snímky obrazovky citované v důkazech úkolů; nepatří mezi soubory aplikace. |
 | `IDEAS.md` | Nápady – vznikne až s prvním nápadem. |
 
 ## Jak začít
@@ -261,8 +262,26 @@ Parametry nemají nastavovací UI; popisují je
 původní přijaté hodnoty
 [`DEC-009`](DECISIONS.md#dec-009).
 
+## Desktopová aplikace AbstractView
+
+Vedle původního dema je v `abstractview_app/` ovládací panel AbstractView. Spustíš
+jej z kořene repozitáře po přípravě prostředí:
+
+```powershell
+.\.venv\Scripts\python.exe -m abstractview_app.main
+```
+
+`ui.py` obsahuje ovládací panel Tk, přesouvatelná nastavení a samostatné okno výstupu, `scene.py`
+vykresluje pozadí a Fištróna ze šesti obrázků v `abstractview_app/assets/`, `renderer.py` skládá efekty v Pygame, `samples.py`
+připravuje ukázky, CSV a náhradní vstup kamery, `config.py` ukládá nastavení do
+`abstractview_settings.json`. Běžná webkamera poskytuje jen obraz převedený na
+přibližnou hloubku; virtuální ToF je simulace. Skutečný ToF senzor je budoucí
+integrace. Testy panelu jsou v `abstractview_app/tests/` a spouštějí se explicitně
+cestou k souboru; výchozí `pytest` zahrnuje pouze `tests/`.
+Aktuální sestavená aplikace je `abstractview.exe` v kořeni projektu. Otevřené panely a jejich polohy se ukládají do `abstractview_settings.json`.
+
 ## Co tu (zatím) není
 
-CI a licence zatím nejsou připravené.
+CI zatím není připravené.
 Architekturu a základní závislosti stanovují
 schválené záznamy v `DECISIONS.md`.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import csv
 import math
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,6 +14,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from project_china.frames import DepthFrame, DepthSequence, load_depth_csv
+
+_CAMERA_DISCOVERY_LOCK = threading.Lock()
 
 
 @dataclass(frozen=True)
@@ -95,10 +98,12 @@ def _smin(
 
 
 def _build_human_matrix(
-    arm_angle_deg: float, breath_phase: float, sway: float
+    arm_angle_deg: float, breath_phase: float, sway: float, scale: int = 1
 ) -> NDArray[np.float64]:
     """Vytvoří 2.5D hloubkovou matici člověka v dané póze (rozsah těla ~860..900)."""
-    y_coords, x_coords = np.mgrid[0:_GRID_H, 0:_GRID_W].astype(np.float32)
+    y_coords, x_coords = np.mgrid[0:_GRID_H * scale, 0:_GRID_W * scale].astype(np.float32)
+    y_coords /= scale
+    x_coords /= scale
     cx = (_GRID_W * 0.5) + sway * 1.4
     breath = math.sin(breath_phase) * 0.6
 
@@ -207,32 +212,35 @@ def render_sample_thumbnail_ppm(
 
     seq = get_sample_sequence(sample_id)
     info = SAMPLE_POSE_MAP.get(sample_id, SAMPLE_POSES[-1])
-    frame = seq.frames[min(info.Preview_frame_idx, len(seq.frames) - 1)]
-    depths = np.asarray(frame.depths, dtype=np.float32)
-    mask = (depths >= 750.0) & (depths <= 1000.0)
+    idx = min(info.Preview_frame_idx, len(seq.frames) - 1)
+    phase = idx / _NUM_FRAMES
+    triangle = 1.0 - abs(2.0 * phase - 1.0)
+    eased = math.sin(math.pi * 0.5 * triangle) ** 2
+    angle = info.arm_min_deg + (info.arm_max_deg - info.arm_min_deg) * eased
+    depths = _build_human_matrix(angle, math.tau * phase, math.sin(math.tau * phase), scale=4).astype(np.float32)
+    mask = ((depths >= 750.0) & (depths <= 1000.0)).astype(np.float32)
 
-    # Vytvoříme tmavě modrý náhled se siluetou a hvězdami
-    img = np.zeros((_GRID_H, _GRID_W, 3), dtype=np.uint8)
-    img[:, :] = (14, 24, 48)
-
-    rng = np.random.default_rng(hash(sample_id) & 0xFFFF)
+    # Náhled tvoříme ve dvojnásobném cílovém rozlišení. Silueta se
+    # znovu vyhodnotí ze spojitého modelu, nenatahuje se mřížka 64×96.
+    ww, hh = width * 2, height * 2
+    img = np.empty((hh, ww, 3), dtype=np.uint8)
+    img[:] = (14, 24, 48)
+    rng = np.random.default_rng(sum(ord(ch) for ch in sample_id))
     for _ in range(38):
-        sx = int(rng.integers(0, _GRID_W))
-        sy = int(rng.integers(0, _GRID_H))
-        img[sy, sx] = (140, 175, 230)
+        sx = int(rng.integers(0, ww))
+        sy = int(rng.integers(0, hh))
+        cv2.circle(img, (sx, sy), 1, (140, 175, 230), -1, cv2.LINE_AA)
 
+    target_h = max(1, hh - 8)
+    target_w = min(ww - 8, round(target_h * _GRID_W / _GRID_H))
+    x0, y0 = (ww - target_w) // 2, (hh - target_h) // 2
+    smooth_mask = cv2.resize(mask, (target_w, target_h), interpolation=cv2.INTER_AREA)[:, :, None]
     nearness = np.clip((900.0 - depths) / 38.0, 0.0, 1.0)
-    img[mask, 0] = (90 + nearness[mask] * 155).astype(np.uint8)
-    img[mask, 1] = (165 + nearness[mask] * 80).astype(np.uint8)
-    img[mask, 2] = 255
-
-    # Obrys zvýrazníme jasně bílo-tyrkysovou
-    contours, _ = cv2.findContours(
-        mask.astype(np.uint8) * 255, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE
-    )
-    cv2.drawContours(img, contours, -1, (235, 250, 255), 1)
-
-    resized = cv2.resize(img, (width, height), interpolation=cv2.INTER_LINEAR)
+    body = np.stack((90 + nearness * 155, 165 + nearness * 80, np.full_like(nearness, 255)), axis=-1)
+    body = cv2.resize(body, (target_w, target_h), interpolation=cv2.INTER_AREA)
+    roi = img[y0:y0 + target_h, x0:x0 + target_w].astype(np.float32)
+    img[y0:y0 + target_h, x0:x0 + target_w] = np.clip(roi * (1.0 - smooth_mask) + body * smooth_mask, 0, 255).astype(np.uint8)
+    resized = cv2.resize(img, (width, height), interpolation=cv2.INTER_AREA)
     header = f"P6 {width} {height} 255\n".encode("ascii")
     ppm = header + resized.tobytes()
     _THUMB_CACHE[key] = ppm
@@ -265,24 +273,25 @@ class CameraDeviceInfo:
 def discover_camera_ports(max_ports: int = 4) -> list[CameraDeviceInfo]:
     """Prohledá porty zařízení s připojenou kamerou + poskytne simulovanou ToF kameru."""
     devices: list[CameraDeviceInfo] = []
-    for port in range(max_ports):
-        cap = None
-        try:
-            cap = cv2.VideoCapture(port, cv2.CAP_DSHOW)
-            if cap is not None and cap.isOpened():
-                devices.append(
-                    CameraDeviceInfo(
-                        port=port,
-                        label=f"Port {port} – USB / Integrovaná kamera",
-                        is_simulated=False,
+    with _CAMERA_DISCOVERY_LOCK:
+        for port in range(max_ports):
+            cap = None
+            try:
+                cap = cv2.VideoCapture(port, cv2.CAP_DSHOW)
+                if cap is not None and cap.isOpened():
+                    devices.append(
+                        CameraDeviceInfo(
+                            port=port,
+                            label=f"Port {port} – USB / Integrovaná kamera",
+                            is_simulated=False,
+                        )
                     )
-                )
-        except (cv2.error, OSError, RuntimeError):
-            continue
-        finally:
-            if cap is not None:
-                with contextlib.suppress(cv2.error, OSError, RuntimeError):
-                    cap.release()
+            except (cv2.error, OSError, RuntimeError):
+                continue
+            finally:
+                if cap is not None:
+                    with contextlib.suppress(cv2.error, OSError, RuntimeError):
+                        cap.release()
 
     # Vždy přidáme virtuální ToF senzor, aby šel výběr kamery ihned vyzkoušet
     devices.append(

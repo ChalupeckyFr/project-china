@@ -1,22 +1,41 @@
 {
   "theme_mode": "dark",
   "source_type": "sample",
-  "sample_id": "pose_raise",
+  "sample_id": "pose_calm",
   "csv_path": "",
   "camera_port": 0,
   "active_effect": "stars",
-  "shape_shuffle": true,
-  "object_shuffle": true,
-  "shuffle_interval_s": 15,
+  "shape_shuffle": false,
+  "object_shuffle": false,
+  "open_panels": [
+    "shape"
+  ],
+  "panel_positions": {
+    "shape": [
+      0.5385,
+      0.3072
+    ],
+    "object": [
+      0.6037,
+      0.0502
+    ],
+    "shuffle": [
+      0.3074,
+      0.4436
+    ]
+  },
+  "window_geometry": "",
+  "window_state": "normal",
+  "shuffle_interval_s": 60,
   "shuffle_transition_s": 1.0,
-  "shuffle_order": "random",
+  "shuffle_order": "normal",
   "custom_enabled_effects": [
     "stars",
-    "rings",
-    "nebula"
+    "nebula",
+    "rings"
   ],
-  "gravity": 20,
-  "star_count": 600,
+  "gravity": 43,
+  "star_count": 1375,
   "shooting_stars_freq": 25,
   "twinkle_speed": 40,
   "nebula_swirl": 45,
@@ -47,6 +66,6 @@
   "pattern_style": "solid",
   "graffiti_brush_color": "red",
   "graffiti_eraser": false,
-  "graffiti_brush_size": 14,
+  "graffiti_brush_size": 8,
   "graffiti_strokes": []
 }

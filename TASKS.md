@@ -426,3 +426,160 @@ pravidla důkazů viz [`AGENTS.md`](AGENTS.md), sekce 8.
   - Neověřeno: nativní okno, skutečná kamera a produktová akceptace.
 - Stav: dokonceno
 - Poznámky: Simulační skript `simulate_t022.py` je session artefakt, ne součást repozitáře.
+
+## T-023
+
+- Název: Vizuální úpravy panelu AbstractView
+- Cíl: Naplnit vzhled a podmíněné volby podle zadání člověka z 2026-11-08.
+- Vazby: [AC-002](SPEC.md#ac-002), [DEC-024](DECISIONS.md#dec-024), [DEC-025](DECISIONS.md#dec-025).
+- Rozsah: `abstractview_app/ui.py`, `scene.py`, `samples.py`, `config.py`, související testy a deklarace závislostí; původní demo `src/project_china` se nemění.
+- Závislosti: žádné
+- Riziko: Vzhled je subjektivní a dosud nebyl posouzen člověkem na jeho monitoru.
+- Hotovo když: Zdroj, karty, barvy, Graffiti, ostré náhledy a pozadí, střídání oblohy, kamera, výstupní tlačítko a Fištrón odpovídají AC-002 včetně vizuální akceptace.
+- Ověření:
+  - Plán: Automatické testy UI a renderování, kontrola náhledů, lidské posouzení náhledového exe.
+  - Výsledek: Pracovní kopie nad HEAD `ebec925` s otisky v [DEC-025](DECISIONS.md#dec-025). `pytest -q -p no:cacheprovider --basetemp <lokální složka> tests abstractview_app/tests/test_abstractview.py -k 'not ui_dynamic'` → 387 úspěšných, 1 vynechaný; samostatný nativní `-k ui_dynamic` mimo sandbox → 1 úspěšný. `ruff check src tests abstractview_app` → bez chyb. Ruční vizuální posouzení člověkem dosud neproběhlo.
+- Stav: k-overeni
+- Poznámky: Náhledový exe viz [T-025](#t-025). Předchozí neuložené změny souborů byly zachovány. Novou podobu Fištróna a nastavení po zpětné vazbě řeší [T-026](#t-026).
+
+## T-024
+
+- Název: Plynulost scény a oprava maximálního počtu hvězd
+- Cíl: Zkrátit čas překreslení panelu a odstranit pád při 2 500 hvězdách.
+- Vazby: [AC-003](SPEC.md#ac-003), [DEC-024](DECISIONS.md#dec-024), [DEC-025](DECISIONS.md#dec-025).
+- Rozsah: `abstractview_app/scene.py`, `ui.py`, `renderer.py` a cílené testy.
+- Závislosti: žádné
+- Riziko: Subjektivní odezva závisí na výkonu konkrétního počítače a nativním Tk zobrazení.
+- Hotovo když: Počet 2 500 nezpůsobí chybu, pozadí a karty neblokují hlavní vlákno při každém tiknutí, člověk potvrdí použitelnost.
+- Ověření:
+  - Plán: Mezní test hvězd, profilování scény 960×1100, nativní UI test a lidské vyzkoušení.
+  - Výsledek: Pracovní kopie nad HEAD `ebec925`; otisky v [DEC-025](DECISIONS.md#dec-025). Před opravou `AbstractViewEngine.render_step` s 2 500 hvězdami → `IndexError` na indexu 360; po opravě 100 snímků → průměr 1,41 ms na vykreslení efektu. Pozadí 960×720 před/po: 610/4 ms na nový snímek; složení scény 960×1100 bez Tk před/po: 32,61/4,85 ms na snímek. `pytest` a Ruff viz T-023. Měření proběhlo na tomto Windows/CPython 3.13.17; skutečné FPS a subjektivní plynulost na zařízení člověka dosud nebyly ověřeny.
+- Stav: k-overeni
+- Poznámky: Uspání kresby při minimalizaci a vyhledávání kamery mimo hlavní vlákno jsou zahrnuty v této revizi.
+
+## T-025
+
+- Název: Sestavení náhledového AbstractView pro vizuální kontrolu
+- Cíl: Dodat spustitelnou kopii aktuálního UI bez přepsání existujícího neuloženého `abstractview.exe`.
+- Vazby: [AC-002](SPEC.md#ac-002), [AC-003](SPEC.md#ac-003), [DEC-024](DECISIONS.md#dec-024).
+- Rozsah: `abstractview-preview.exe`, závislosti a návod k lokálnímu spuštění; původní `abstractview.exe` beze změny touto session.
+- Závislosti: T-023, T-024 (technická implementace)
+- Riziko: Jednosouborový exe se při prvním spuštění rozbaluje; výkon na produkčním zařízení není ověřen.
+- Hotovo když: Náhledový exe obsahuje Tk/Tcl a úspěšně dokončí vestavěný `--self-test`.
+- Ověření:
+  - Plán: Sestavení existujícím PyInstallerem a spuštění kopie v oddělené složce, aby se nezměnilo uživatelské nastavení.
+  - Výsledek: Nad HEAD `ebec925` sestaven `abstractview-preview.exe` pomocí PyInstaller 6.22.3 s nativním Tk/Tcl; SHA-256 `B981C940336AF4A8E98C63044978550A7F9C578948231F81FE16DD6D50D199BD`. Kopie exe v oddělené testovací složce s argumentem `--self-test` skončila `ExitCode=0`. První sestavení v sandboxu vyloučilo Tk; bylo nahrazeno nativním sestavením. Skutečná kamera, produkční zařízení a lidská akceptace vzhledu nebyly součástí smoke testu.
+- Stav: dokonceno
+- Poznámky: Náhledový exe je nový soubor; existující `abstractview.exe` má nadále původní neuloženou změnu člověka. Náhled byl po [T-026](#t-026) sestaven znovu, SHA-256 `F1A07D504C4702E68A9441E62F7FD702066D4F937A20F59EC6A9C6A87F042C12`; jeho kopie s `--self-test` v oddělené složce skončila `ExitCode=0`.
+
+## T-026
+
+- Název: Nový hologram Fištróna a prosklené nastavení
+- Cíl: Naplnit vizuální zpětnou vazbu člověka z 2026-11-08 k Fištrónovi a oknu nastavení.
+- Vazby: [FR-010](SPEC.md#fr-010), [AC-004](SPEC.md#ac-004), [DEC-026](DECISIONS.md#dec-026), [DEC-027](DECISIONS.md#dec-027).
+- Rozsah: `abstractview_app/scene.py`, `ui.py`, související testy a nový náhled `abstractview-preview.exe`; ostatní ovládací prvky a původní `abstractview.exe` se nepřepisují.
+- Závislosti: T-023 a T-024 (dosavadní technické provedení)
+- Riziko: Sklo ve vnořených Tk ovládacích prvcích nelze vykreslit se skutečnou průhledností; výsledný vzhled a plynulost musí posoudit člověk.
+- Hotovo když: Fištrón a panel odpovídají AC-004, testy i nativní exe projdou a člověk výsledek vizuálně přijme.
+- Ověření:
+  - Plán: Test čistého vykreslení hologramu a skla, nativní test Tk ve více velikostech, vizuální snímek okna, časové měření scény a smoke test exe.
+  - Výsledek: Pracovní kopie nad HEAD `ebec925`, otisky kódu v [DEC-027](DECISIONS.md#dec-027). Snímek [abstractview-hologram-preview.png](docs/evidence/abstractview-hologram-preview.png) z nativního okna v tmavém režimu potvrzuje Fištróna na průhledné části širokého panelu, pevnou podložku vlevo dole a poušť za sklem. `pytest -q -p no:cacheprovider abstractview_app/tests/test_abstractview.py -k 'not ui_dynamic'` → 9 úspěšných, 1 vynechaný; samostatný nativní `-k ui_dynamic` mimo sandbox → 1 úspěšný včetně malého okna s otevřeným nastavením. `ruff check src tests abstractview_app` a `git diff --check` prošly. Měřená část scény 1100×730 s panelem a hologramem: po opravě maskování 4,86 ms/snímek oproti 17,03 ms před ní; nativní aplikace s otevřeným nastavením ukazovala přibližně 27,6 FPS během tří sekund na Windows/CPython 3.13.17. Náhledový exe SHA-256 `F1A07D504C4702E68A9441E62F7FD702066D4F937A20F59EC6A9C6A87F042C12` s Tk/Tcl prošel `--self-test` v oddělené složce (`ExitCode=0`). Skutečné zařízení člověka, oba motivy ve skutečném okně a produktová akceptace zatím ověřeny nejsou.
+- Stav: zruseno
+- Poznámky: Člověk 2026-11-08 neonovou podobu výslovně odmítl a nahradil ji zadáním [FR-011](SPEC.md#fr-011). Historické technické důkazy zůstávají zachované; novou revizi řeší [T-027](#t-027).
+
+## T-027
+
+- Název: Kreslený Fištrón a plynulé přepnutí motivu
+- Cíl: Naplnit poslední vizuální zpětnou vazbu člověka k Fištrónovi, plátnu, nápisům a změně dne a noci.
+- Vazby: [FR-011](SPEC.md#fr-011), [AC-005](SPEC.md#ac-005), [NFR-002](SPEC.md#nfr-002), [DEC-028](DECISIONS.md#dec-028), [DEC-029](DECISIONS.md#dec-029).
+- Rozsah: Šest obrázků v `abstractview_app/assets`, `scene.py`, `ui.py`, `samples.py`, testy a samostatný `abstractview-cartoon-preview.exe`.
+- Závislosti: Dosavadní technické základy T-023 a T-024; odmítnutý T-026 není předpokladem akceptace.
+- Riziko: Vizuální podoba a subjektivní plynulost vyžadují lidské posouzení na cílovém monitoru. Tk na konci animace jednorázově přebarví ovládání.
+- Hotovo když: AC-005 projde technickými kontrolami a člověk vizuálně přijme novou podobu a odezvu.
+- Ověření:
+  - Plán: Test šesti póz a ukládání do paměti, GUI test stavů a motivu, profilování přechodu v obou směrech, kontrola snímků, test 2500 hvězd a smoke test samostatného EXE.
+  - Výsledek: Pracovní kopie nad HEAD `ebec925`, zdrojové otisky v [DEC-029](DECISIONS.md#dec-029). `pytest abstractview_app/tests/test_abstractview.py -q --basetemp .\\_test_tmp_final3 -p no:cacheprovider` mimo sandbox → 11 úspěšných včetně GUI, obou směrů přechodu motivu, rychlého přesunu, zachování směru běhu a 2500 hvězd. `ruff check src tests abstractview_app` a `git diff --check` prošly. Nativní měření změny motivu 1280×850, 42 kroků na směr: medián 17,6–22,9 ms, jen 0–3 kroky nad 33 ms při zavřeném i otevřeném nastavení; stabilní scéna měla medián 16,3–18,4 ms a 0–1 krok nad 33 ms. Lokální snímky [světlé scény](docs/evidence/abstractview-cartoon-light-preview.png) a [panelu](docs/evidence/abstractview-cartoon-panel-preview.png) ukázaly dvě oči a vykukování z levého okraje; všech šest PNG póz prošlo testem načtení. Nový `abstractview-cartoon-preview.exe` obsahuje PNG assety, SHA-256 `DB696F8DFB889CF915B5EF563539C2C313F6F024E38513853307275CE645BC5E`; kopie v oddělené složce s `--self-test` skončila `ExitCode=0`.
+  - Neověřeno: Produktová akceptace člověkem a výkon na jiném zařízení.
+- Stav: k-overeni
+- Poznámky: Původní `abstractview.exe` nebyl touto úpravou přepsán.
+
+## T-028
+
+- Název: Plovoucí panely a animace Fištróna při ladění efektů
+- Cíl: Naplnit [AC-006](SPEC.md#ac-006) bez ztráty dosavadní plynulosti a nastavení.
+- Vazby: [FR-012](SPEC.md#fr-012), [AC-006](SPEC.md#ac-006), [DEC-030](DECISIONS.md#dec-030).
+- Rozsah: `abstractview_app/config.py`, `ui.py`, `scene.py`, nové pózy v `assets`, cílené testy, dokumentace a hlavní `abstractview.exe`.
+- Závislosti: Technická implementace T-027.
+- Riziko: Přesouvání několika vnořených Tk prvků a jejich pořadí může ovlivnit odezvu; nové chování vyžaduje nativní GUI ověření.
+- Hotovo když: Panely se přesouvají a obnovují bez duplicit, animace reagují na fokus a změny hodnot, úder míří na tlačítko, plátno ukazuje aktivní efekt a testy v obou motivech projdou. Vzhled čeká na produktovou akceptaci člověka.
+- Ověření:
+  - Plán: Cílené modelové a nativní GUI testy, kontrola poloh a perzistence, ověření póz a efektního úderu, měření otevření panelů, smoke test EXE.
+  - Výsledek: Pracovní kopie nad HEAD `ebec925`, otisky kódu v [DEC-031](DECISIONS.md#dec-031). Nativní Tk testy `pytest abstractview_app/tests/test_abstractview.py -q --basetemp .\\_test_t028_last2 -p no:cacheprovider` → 13 úspěšných včetně tří panelů, perzistence, klidové animace u plátna, úderu a 2500 hvězd. Celá existující sada `pytest -q --basetemp .\\_test_t028_all -p no:cacheprovider` → 378 úspěšných před závěrečným časováním úderu a doplněním testu plátna; cílená sada po změnách znovu prošla. `ruff check src tests abstractview_app` a `git diff --check` bez chyb. Nativní [snímek panelů](docs/evidence/abstractview-panel-layout.png) ukázal aktivní panel nad ostatními a [snímek zadní pózy](docs/evidence/abstractview-fistron-edit.png) packu na hraně; otevření panelu ve zkoušce 1280×850 trvalo 31–39 ms. Při třech otevřených panelech má změna motivu v lokálním měření 19 kroků na směr, medián 24,4–24,6 ms a čtyři kroky nad 33 ms v každém směru. Hlavní `abstractview.exe` obsahuje osm PNG póz, SHA-256 `C116AD6170B9E38365C103CB30D5CF221453C896BBF5E9165DD55A1E79455952`; kopie v oddělené složce s `--self-test` skončila `ExitCode=0`.
+  - Neověřeno: Produktová akceptace člověkem, výkon na jiném zařízení a skutečná kamera.
+- Stav: k-overeni
+- Poznámky: Zadání člověka z 2026-11-08 je v DEC-030; souhlas s nahrazením hlavního EXE a úklidem v [DEC-032](DECISIONS.md#dec-032).
+
+## T-029
+
+- Název: Zaoblení panelů, promítaný Fištrón a přepínač dne a noci
+- Cíl: Naplnit [AC-007](SPEC.md#ac-007) a odstranit vizuální chyby doložené videem člověka.
+- Vazby: [FR-013](SPEC.md#fr-013), [AC-007](SPEC.md#ac-007), [DEC-033](DECISIONS.md#dec-033), [NFR-002](SPEC.md#nfr-002).
+- Rozsah: `abstractview_app/ui.py`, `scene.py`, `main.py`, nové obrázky v `assets`, cílené testy, evidence a aktualizace jediného `abstractview.exe`.
+- Závislosti: Technický základ T-028; dosavadní ukládání panelů a nastavení zůstává funkční.
+- Riziko: Nativní maskování rohů a část Fištróna překrývající panel vyžadují ověření ve Windows; přechod motivu nesmí zhoršit odezvu.
+- Hotovo když: Panel a obsah se při tažení pohybují jako jeden celek se zaoblenými rohy, Fištrón viditelně sleduje obsah, plátno střídá nové rozpoznatelné pózy a přepínač den/noc funguje v obou směrech. Vizuální akceptaci provede člověk.
+- Ověření:
+  - Plán: Nativní snímky a test tažení v obou motivech, test změny póz plátna, měření přepínače, existující GUI testy a smoke test hlavního EXE.
+  - Výsledek: Pracovní kopie nad HEAD `ebec925`; otisky technické revize jsou v [DEC-034](DECISIONS.md#dec-034). Cílené testy `pytest abstractview_app/tests/test_abstractview.py -q -k 'not test_floating_panels_persist_and_fistron_reacts and not test_ui_dynamic_resizing_themes_and_windows'` prošly (12 testů). Celá neinteraktivní sada `pytest -q tests abstractview_app/tests -k 'not test_floating_panels_persist_and_fistron_reacts and not test_ui_dynamic_resizing_themes_and_windows'` prošla (390 testů, 2 GUI vynechány); oba GUI testy prošly samostatně (1 + 1), protože společný běh v tomto prostředí přechodně ztrácí přístup k Tcl/Tk. Testy zahrnují 2 500 hvězd, perzistenci panelů, nativní zaoblení, překryv Fištróna a dvě odlišné nové pózy na plátně. `ruff check src tests abstractview_app` a `git diff --check` prošly. Místní snímky v obou motivech potvrdily kulaté rohy bez odděleného obrysu, Fištróna u hrany, plátno a přepínač. Na Windows/CPython 3.13.17 při okně 1280×850 trval krok přechodu motivu v průměru 21,6 ms, nejdelší 37,7 ms (22 kroků); stabilní scéna průměrně 27,1 ms, nejdelší 75,6 ms (10 kroků). Hlavní `abstractview.exe` SHA-256 `BD5B6E9BB833AB72D70AF1BDB52CC3321698C90A25186AC63895F6438A83DCC3` prošel `--self-test` s `ExitCode=0`; kontrolní SHA nastavení zůstal stejný. Úvodní smoke test před opravou dočasného nastavení mohl změnit aktivní efekt a seznam otevřených panelů v uživatelském JSONu; ostatní volby nebyly cíleně měněny.
+  - Neověřeno: Produktová akceptace člověkem a plynulost na jeho konkrétním monitoru; skutečná kamera.
+  - Snímky: [tmavý panel](docs/evidence/abstractview-rounded-panel-dark.png), [světlý panel](docs/evidence/abstractview-rounded-panel-light.png), [plátno ve světlém motivu](docs/evidence/abstractview-projection-board-light.png). Druhý směr přechodu motivu ve stejné zkoušce měl průměr 25,3 ms a nejdelší krok 63,3 ms (22 kroků); jde o lokální měření, nikoli záruku FPS na jiném zařízení.
+- Stav: zruseno
+- Poznámky: Zadání a ukázkové video z 2026-11-09 jsou v DEC-033. Člověk následně odmítl překryv Fištróna a skoky přebarvování; technické důkazy historické revize zůstávají, výsledný vizuální návrh nahrazuje [T-030](#t-030).
+
+## T-030
+
+- Název: Oprava Fištróna u panelu a plynulého přebarvování
+- Cíl: Naplnit [AC-008](SPEC.md#ac-008) podle dvou nových videí člověka.
+- Vazby: [FR-014](SPEC.md#fr-014), [AC-008](SPEC.md#ac-008), [DEC-035](DECISIONS.md#dec-035), [NFR-002](SPEC.md#nfr-002).
+- Rozsah: `abstractview_app/ui.py`, `scene.py`, `theme.py`, související testy, odstranění již nepoužitých póz vykukování, evidence a aktualizace jediného `abstractview.exe`.
+- Závislosti: Technický základ [T-029](#t-029); ukládání a přetahování panelů zůstává zachováno.
+- Riziko: Častější přebarvování může zhoršit odezvu. Překreslení průhledných obrázků tlačítek a posuvníků se musí měřit v obou směrech přechodu.
+- Hotovo když: Fištrón stojí mimo obsah panelu stabilně při pohybu myši, přechod motivu mění barvy postupně a čitelně, ovládací čáry jsou hladké, testy a hlavní EXE procházejí; vizuální akceptaci provede člověk.
+- Ověření:
+  - Plán: Srovnat obě videa s nativními snímky obou motivů a mezistavu, otestovat pozici/hover, čitelnost a počet mezibarev, regresní test 2 500 hvězd, změřit oba směry, spustit GUI testy a self-test EXE bez změny uživatelského nastavení.
+  - Výsledek: Pracovní kopie nad HEAD `ebec925`; otisky finální revize jsou v [DEC-036](DECISIONS.md#dec-036). `pytest -q tests abstractview_app/tests -k 'not test_floating_panels_persist_and_fistron_reacts and not test_ui_dynamic_resizing_themes_and_windows' --basetemp .\_test_t030_verified -p no:cacheprovider` → 391 úspěšných, 2 GUI testy vynechány (478,94 s). Oba GUI testy spuštěné samostatně v nativním Windows/Tk prostředí nad finální revizí → 1 + 1 úspěšný (5,71 s a 9,28 s); kontrolují stabilního Fištróna u panelu, ukládání poloh, skutečně zaoblený rám, průhledné rohy tlačítek a posuvníků a průběžné přebarvení. Sada zahrnuje 2 500 hvězd. `ruff check src tests abstractview_app` a `git diff --check` prošly. Místní snímky [světlého stavu](docs/evidence/abstractview-fix-light.png), [tmavého stavu](docs/evidence/abstractview-fix-dark.png) a [mezistavu](docs/evidence/abstractview-fix-transition.png) ukazují celou postavu mimo panel, hladký přepínač a souběžné přebarvení bez obdélníkových záplat. Profil finální hlavní smyčky nativního okna 1100×800 při změně do světlého režimu: 41 intervalů, medián 29,7 ms, průměr 30,9 ms, maximum 57,8 ms, dva intervaly nad 50 ms. Před rozložením práce mezi snímky bylo devět intervalů nad 50 ms z 38; jde o lokální měření na Windows 11/CPython 3.13.17, nikoli o FPS na zařízení člověka. Jediný hlavní `abstractview.exe` SHA-256 `BEECA1CBE1D7236B62886F2E6AA35F56329323B7B31A4B48F58CA15E8B91D6BC` prošel `--self-test` (`ExitCode=0`) a otisk `abstractview_settings.json` se nezměnil.
+  - Neověřeno: Vizuální akceptace a subjektivní plynulost na monitoru člověka; skutečná kamera.
+- Stav: zruseno
+- Poznámky: Zadání člověka z 2026-11-09 je zaznamenáno v DEC-035. Člověk následně odmítl klidovou polohu Fištróna u panelu a obsah tabule; historické technické důkazy zůstávají, dotčený výsledek nahrazuje [T-031](#t-031).
+
+## T-031
+
+- Název: Fištrón u pelíšku, tabule efektu a uchopitelné záhlaví
+- Cíl: Naplnit [AC-009](SPEC.md#ac-009) podle nové vizuální zpětné vazby člověka.
+- Vazby: [FR-015](SPEC.md#fr-015), [AC-009](SPEC.md#ac-009), [DEC-037](DECISIONS.md#dec-037).
+- Rozsah: Stav a kreslení Fištróna, obsah promítací tabule, záhlaví tří plovoucích panelů, cílené testy a jediný hlavní `abstractview.exe`.
+- Závislosti: Aktuální základ [T-030](#t-030); přesun a ukládání poloh panelů zůstávají funkční.
+- Riziko: Více panelů může překrýt odpočinkové místo; pozici a vrstvení je nutné ověřit v nativním okně i při menší velikosti.
+- Hotovo když: AC-009 je technicky ověřeno na aktuální revizi; vizuální akceptaci provede člověk.
+- Ověření:
+  - Plán: Stavové testy klidu a tažení, kontrola textu tabule a záhlaví, dva nativní GUI scénáře, statická kontrola a `--self-test` hlavního EXE beze změny nastavení.
+  - Výsledek: Pracovní kopie nad HEAD `ebec925`, otisky zdrojů a EXE v [DEC-038](DECISIONS.md#dec-038). `pytest -q abstractview_app/tests/test_abstractview.py -k 'not test_floating_panels_persist_and_fistron_reacts and not test_ui_dynamic_resizing_themes_and_windows' --basetemp .\_test_t031_unit_final2 -p no:cacheprovider` → 14 úspěšných, 2 GUI testy vynechány. Dva GUI testy spuštěné samostatně v nativním Windows/Tk → 1 + 1 úspěšný (4,70 s a 9,31 s); ověřují návrat domů po tažení, nepřekrytí v běžném a úzkém okně, název efektu na tabuli a úchop panelu. `ruff check src tests abstractview_app` a `git diff --check` prošly. Jediný hlavní `abstractview.exe` prošel `--self-test` (`ExitCode=0`) a `abstractview_settings.json` se nezměnil. Prostředí Windows 11 / CPython 3.13.17 / PyInstaller 6.22.3.
+  - Neověřeno: Vizuální akceptace člověkem, plná regresní sada mimo cílené testy, skutečná kamera a popsaná příležitostná funkční závada hvězd.
+- Stav: zruseno
+- Poznámky: Příležitostná funkční závada hvězd je dalším přírůstkem. Člověk následně odmítl přidané barevné záhlaví a úchop `⋮⋮`; historické technické důkazy zůstávají, dotčený výsledek nahrazuje [T-032](#t-032).
+
+## T-032
+
+- Název: Čisté panely, stabilní pozadí, obnova okna a rychlejší spuštění
+- Cíl: Naplnit [AC-010](SPEC.md#ac-010) podle nové zpětné vazby člověka.
+- Vazby: [FR-016](SPEC.md#fr-016), [AC-010](SPEC.md#ac-010), [NFR-002](SPEC.md#nfr-002), [DEC-039](DECISIONS.md#dec-039), [DEC-040](DECISIONS.md#dec-040).
+- Rozsah: Odstranění přidaných záhlaví a `⋮⋮`, stabilizace pozadí při otevření panelu, perzistence hlavního okna, chování shuffle, zkrácení prodlevy Fištrónova spuštění, testy, sestavovací specifikace a jediný hlavní `abstractview.exe`.
+- Závislosti: Aktuální základ [T-031](#t-031); ostatní vzhled a funkce panelů zůstávají zachovány.
+- Riziko: Obnova maximalizace je závislá na nativním stavu Tk/Windows; panel musí zůstat přesunutelný i bez samostatného záhlaví.
+- Hotovo když: AC-010 je technicky ověřeno na aktuální revizi a hlavní EXE projde self-testem; vzhled a vnímanou rychlost posoudí člověk.
+- Ověření:
+  - Plán: Cílené stavové testy, dva samostatné nativní GUI testy, Ruff, kontrola diffu, sestavení a `--self-test` kopie hlavního EXE beze změny uživatelského nastavení.
+  - Výsledek: Pracovní kopie nad HEAD `ebec925`, otisky v [DEC-040](DECISIONS.md#dec-040). Neinteraktivní testy `pytest -q abstractview_app/tests/test_abstractview.py -k 'not test_floating_panels_persist_and_fistron_reacts and not test_ui_dynamic_resizing_themes_and_windows' --basetemp .\_test_t032_unit -p no:cacheprovider` → 14 úspěšných. Dva nativní Tk testy spuštěné samostatně → 1 + 1 úspěšný (6,04 s a 10,08 s); ověřují absenci záhlaví a `⋮⋮`, tažení přes vnitřní nadpis, stabilní výšku kresleného pozadí, vypnutí shuffle bez znovuotevření zavřeného panelu, perzistenci panelů a obnovu maximalizace po restartu. Prodleva otevření výstupu byla zkrácena z 620 ms na 180 ms. `ruff check abstractview_app` a `git diff --check` prošly. PyInstaller 6.22.3 sestavil jediný hlavní `abstractview.exe`; jeho kopie prošla `--self-test` (`ExitCode=0`) a SHA-256 hlavního `abstractview_settings.json` zůstal před i po testu `0092B3B27B24937E7CC1C11F2F5368D988D6A5B06D718C8512ACD9541BD43A4D`.
+  - Neověřeno: Vizuální akceptace a vnímaná rychlost na zařízení člověka, plná regresní sada mimo cílené testy a skutečná kamera.
+- Stav: k-overeni
+- Poznámky: Příležitostná funkční závada hvězd zůstává samostatnou navazující prací.

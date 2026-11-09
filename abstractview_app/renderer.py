@@ -52,7 +52,11 @@ class AnatomicalRig:
 def extract_anatomical_rig(
     mask: NDArray[np.uint8], surface_size: tuple[int, int]
 ) -> AnatomicalRig:
-    """Z binární hloubkové masky odvodí zjednodušené zóny těla (hlava, V-trup, ruce, nohy)."""
+    """Z binární hloubkové masky odvodí zjednodušené zóny těla (hlava, V-trup, ruce, nohy).
+
+    Výška postavy a poloha hlavy se měří podél středové osy páteře, takže
+    zvednutí rukou nad hlavu nikdy nezvětší hlavu ani neposune trup.
+    """
     sw, sh = surface_size
     gh, gw = mask.shape
     ys, xs = np.nonzero(mask)
@@ -61,15 +65,31 @@ def extract_anatomical_rig(
         return AnatomicalRig(
             has_body=False,
             head_center=(cx, cy - sh * 0.25),
-            head_radius=28.0,
+            head_radius=26.0,
             torso_top=(cx, cy - sh * 0.14),
             torso_bottom=(cx, cy + sh * 0.08),
-            shoulder_half_width=58.0,
-            waist_half_width=34.0,
-            left_arm_points=((cx - 72.0, cy - 30.0), (cx - 86.0, cy + 20.0)),
-            right_arm_points=((cx + 72.0, cy - 30.0), (cx + 86.0, cy + 20.0)),
-            left_leg_points=((cx - 28.0, cy + 70.0), (cx - 32.0, cy + 165.0)),
-            right_leg_points=((cx + 28.0, cy + 70.0), (cx + 32.0, cy + 165.0)),
+            shoulder_half_width=52.0,
+            waist_half_width=32.0,
+            left_arm_points=(
+                (cx - 64.0, cy - 45.0),
+                (cx - 72.0, cy - 5.0),
+                (cx - 78.0, cy + 35.0),
+            ),
+            right_arm_points=(
+                (cx + 64.0, cy - 45.0),
+                (cx + 72.0, cy - 5.0),
+                (cx + 78.0, cy + 35.0),
+            ),
+            left_leg_points=(
+                (cx - 30.0, cy + 65.0),
+                (cx - 33.0, cy + 115.0),
+                (cx - 35.0, cy + 165.0),
+            ),
+            right_leg_points=(
+                (cx + 30.0, cy + 65.0),
+                (cx + 33.0, cy + 115.0),
+                (cx + 35.0, cy + 165.0),
+            ),
         )
 
     margin = 24.0
@@ -80,120 +100,108 @@ def extract_anatomical_rig(
     def to_scr(gx: float, gy: float) -> tuple[float, float]:
         return (left + (gx + 0.5) * scale, top + (gy + 0.5) * scale)
 
-    min_y, max_y = float(ys.min()), float(ys.max())
-    span_y = max(max_y - min_y, 12.0)
-
-    # Střed trupu (v pásmu 25 % až 58 % výšky postavy)
-    torso_band = (ys >= min_y + span_y * 0.24) & (ys <= min_y + span_y * 0.58)
-    if np.any(torso_band):
-        center_gx = float(np.median(xs[torso_band]))
-    else:
-        center_gx = float(np.median(xs))
-
-    # Hlava: horních 22 % postavy blízko osy trupu
-    head_band = (ys <= min_y + span_y * 0.22) & (
-        np.abs(xs - center_gx) <= gw * 0.18
+    feet_bot_gy = float(ys.max())
+    # Střed trupu měříme ve střední/dolní části postavy, kde neruší zvednuté paže
+    mid_body = (ys >= feet_bot_gy - gh * 0.65) & (ys <= feet_bot_gy - gh * 0.25)
+    center_gx = (
+        float(np.median(xs[mid_body])) if np.any(mid_body) else float(np.median(xs))
     )
-    if np.any(head_band):
-        head_gx = float(xs[head_band].mean())
-        head_gy = float(ys[head_band].mean())
-        head_rad_grid = max(
-            3.5, float(np.percentile(np.abs(xs[head_band] - head_gx), 85))
-        )
-    else:
-        head_gx = center_gx
-        head_gy = min_y + span_y * 0.10
-        head_rad_grid = span_y * 0.07
 
+    # Páteřní pás blízko osy trupu určí skutečný vršek hlavy bez vlivu zvednutých rukou
+    spine_band = np.abs(xs - center_gx) <= max(2.0, gw * 0.04)
+    if np.any(spine_band):
+        head_top_gy = float(ys[spine_band].min())
+    else:
+        head_top_gy = float(ys.min())
+
+    body_h = max(feet_bot_gy - head_top_gy, 18.0)
+
+    # Hlava má stálý poloměr odvozený z výšky postavy (nikdy se nezvětšuje při vzpažení)
+    head_gx = center_gx
+    head_gy = head_top_gy + body_h * 0.075
+    head_rad_grid = body_h * 0.068
     head_center = to_scr(head_gx, head_gy)
-    head_radius = max(18.0, head_rad_grid * scale * 1.15)
+    head_radius = max(16.0, head_rad_grid * scale * 1.12)
 
-    # Trup (V-shape): od ramen (25 % výšky) po pas (56 % výšky)
-    torso_top_gy = min_y + span_y * 0.25
-    torso_bot_gy = min_y + span_y * 0.56
-    shoulder_band = (
-        (ys >= min_y + span_y * 0.22)
-        & (ys <= min_y + span_y * 0.34)
-        & (np.abs(xs - center_gx) <= gw * 0.22)
-    )
-    if np.any(shoulder_band):
-        sh_half_grid = max(
-            5.0, float(np.percentile(np.abs(xs[shoulder_band] - center_gx), 82))
-        )
-    else:
-        sh_half_grid = span_y * 0.11
-
-    shoulder_half_w = max(32.0, sh_half_grid * scale * 0.95)
+    # Trup (V-shape): od ramen po pas
+    torso_top_gy = head_top_gy + body_h * 0.215
+    torso_bot_gy = head_top_gy + body_h * 0.535
+    sh_half_grid = body_h * 0.105
+    shoulder_half_w = max(28.0, sh_half_grid * scale * 0.96)
     waist_half_w = shoulder_half_w * 0.62
 
-    # Ruce: body nalevo a napravo od osy trupu v horních 62 % postavy
-    arm_region = ys <= min_y + span_y * 0.62
-    left_arm_mask = arm_region & (xs < center_gx - sh_half_grid * 0.65)
-    right_arm_mask = arm_region & (xs > center_gx + sh_half_grid * 0.65)
+    # Vyloučení jádra těla (hlava, krk, trup, nohy) pro čistou detekci celé paže i nad hlavou
+    in_head_neck = (
+        (ys >= head_top_gy - 1.5)
+        & (ys <= torso_top_gy)
+        & (np.abs(xs - center_gx) <= body_h * 0.085)
+    )
+    in_torso = (
+        (ys > torso_top_gy)
+        & (ys <= torso_bot_gy + body_h * 0.04)
+        & (np.abs(xs - center_gx) <= sh_half_grid * 0.92)
+    )
+    in_legs = ys > torso_bot_gy + body_h * 0.04
+    arm_candidates = ~(in_head_neck | in_torso | in_legs)
 
-    def extract_limb_chain(
+    left_arm_mask = arm_candidates & (xs < center_gx)
+    right_arm_mask = arm_candidates & (xs > center_gx)
+
+    def extract_arm_chain(
         limb_xs: NDArray[np.intp],
         limb_ys: NDArray[np.intp],
-        anchor_gx: float,
-        anchor_gy: float,
         side_sign: float,
     ) -> tuple[tuple[float, float], ...]:
+        sh_gx = center_gx + side_sign * sh_half_grid
+        sh_gy = torso_top_gy
         if len(limb_xs) < 6:
             return (
-                to_scr(anchor_gx + side_sign * 4.0, anchor_gy + 4.0),
-                to_scr(anchor_gx + side_sign * 5.0, anchor_gy + 12.0),
-                to_scr(anchor_gx + side_sign * 5.5, anchor_gy + 20.0),
+                to_scr(sh_gx + side_sign * 2.5, sh_gy + 5.5),
+                to_scr(sh_gx + side_sign * 3.5, sh_gy + 12.5),
+                to_scr(sh_gx + side_sign * 4.2, sh_gy + 19.0),
             )
-        dists = np.hypot(limb_xs - anchor_gx, limb_ys - anchor_gy)
-        max_d = max(float(dists.max()), 1.0)
+        dists = np.hypot(limb_xs - sh_gx, limb_ys - sh_gy)
+        d_max = max(float(np.percentile(dists, 95)), 4.0)
         pts: list[tuple[float, float]] = []
-        for frac in (0.28, 0.58, 0.86):
-            band = (dists >= max_d * (frac - 0.18)) & (
-                dists <= max_d * (frac + 0.18)
+        for frac in (0.30, 0.60, 0.88):
+            band = (dists >= d_max * (frac - 0.16)) & (
+                dists <= d_max * (frac + 0.16)
             )
             if np.any(band):
                 pts.append(
                     to_scr(float(limb_xs[band].mean()), float(limb_ys[band].mean()))
                 )
-        if not pts:
+        while len(pts) < 3:
             pts.append(to_scr(float(limb_xs.mean()), float(limb_ys.mean())))
-        return tuple(pts)
+        return tuple(pts[:3])
 
-    left_arm_pts = extract_limb_chain(
-        xs[left_arm_mask],
-        ys[left_arm_mask],
-        center_gx - sh_half_grid * 0.85,
-        torso_top_gy,
-        -1.0,
+    left_arm_pts = extract_arm_chain(
+        xs[left_arm_mask], ys[left_arm_mask], -1.0
     )
-    right_arm_pts = extract_limb_chain(
-        xs[right_arm_mask],
-        ys[right_arm_mask],
-        center_gx + sh_half_grid * 0.85,
-        torso_top_gy,
-        1.0,
+    right_arm_pts = extract_arm_chain(
+        xs[right_arm_mask], ys[right_arm_mask], 1.0
     )
 
-    # Nohy: dolních 42 % postavy (levá a pravá polovina)
+    # Nohy: každá noha má své vlastní 3 výškové body (stehno, koleno, lýtko)
     leg_pts_left: list[tuple[float, float]] = []
     leg_pts_right: list[tuple[float, float]] = []
-    for frac in (0.64, 0.78, 0.91):
-        y_target = min_y + span_y * frac
-        row_band = np.abs(ys - y_target) <= max(2.0, span_y * 0.05)
-        l_mask = row_band & (xs < center_gx)
-        r_mask = row_band & (xs >= center_gx)
+    for frac in (0.64, 0.77, 0.90):
+        y_target = head_top_gy + body_h * frac
+        row_band = np.abs(ys - y_target) <= max(2.0, body_h * 0.045)
+        l_mask = row_band & (xs < center_gx - 0.5)
+        r_mask = row_band & (xs > center_gx + 0.5)
         if np.any(l_mask):
             leg_pts_left.append(
                 to_scr(float(xs[l_mask].mean()), float(ys[l_mask].mean()))
             )
         else:
-            leg_pts_left.append(to_scr(center_gx - sh_half_grid * 0.45, y_target))
+            leg_pts_left.append(to_scr(center_gx - sh_half_grid * 0.52, y_target))
         if np.any(r_mask):
             leg_pts_right.append(
                 to_scr(float(xs[r_mask].mean()), float(ys[r_mask].mean()))
             )
         else:
-            leg_pts_right.append(to_scr(center_gx + sh_half_grid * 0.45, y_target))
+            leg_pts_right.append(to_scr(center_gx + sh_half_grid * 0.52, y_target))
 
     return AnatomicalRig(
         has_body=True,
@@ -207,6 +215,48 @@ def extract_anatomical_rig(
         right_arm_points=right_arm_pts,
         left_leg_points=tuple(leg_pts_left),
         right_leg_points=tuple(leg_pts_right),
+    )
+
+
+def blend_anatomical_rigs(
+    first: AnatomicalRig, second: AnatomicalRig, alpha: float
+) -> AnatomicalRig:
+    """Plynule interpoluje dva anatomické rigy mezi klíčovými snímky."""
+    if alpha <= 1e-5 or not second.has_body:
+        return first
+    if alpha >= 1.0 - 1e-5 or not first.has_body:
+        return second
+    t = alpha * alpha * (3.0 - 2.0 * alpha)
+
+    def lerp_pt(
+        a: tuple[float, float], b: tuple[float, float]
+    ) -> tuple[float, float]:
+        return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
+
+    def lerp_chain(
+        ca: tuple[tuple[float, float], ...], cb: tuple[tuple[float, float], ...]
+    ) -> tuple[tuple[float, float], ...]:
+        n = min(len(ca), len(cb))
+        return tuple(lerp_pt(ca[i], cb[i]) for i in range(n))
+
+    return AnatomicalRig(
+        has_body=True,
+        head_center=lerp_pt(first.head_center, second.head_center),
+        head_radius=first.head_radius + (second.head_radius - first.head_radius) * t,
+        torso_top=lerp_pt(first.torso_top, second.torso_top),
+        torso_bottom=lerp_pt(first.torso_bottom, second.torso_bottom),
+        shoulder_half_width=first.shoulder_half_width
+        + (second.shoulder_half_width - first.shoulder_half_width) * t,
+        waist_half_width=first.waist_half_width
+        + (second.waist_half_width - first.waist_half_width) * t,
+        left_arm_points=lerp_chain(first.left_arm_points, second.left_arm_points),
+        right_arm_points=lerp_chain(
+            first.right_arm_points, second.right_arm_points
+        ),
+        left_leg_points=lerp_chain(first.left_leg_points, second.left_leg_points),
+        right_leg_points=lerp_chain(
+            first.right_leg_points, second.right_leg_points
+        ),
     )
 
 
@@ -490,20 +540,17 @@ class DynamicStarSystem:
             # Kombinace obrysových a objemových bodů
             if len(body_points_screen) > 0:
                 n_out = max(1, int(count * 0.42))
-                idx_out = (np.arange(n_out) * len(outline_screen)) // len(
-                    outline_screen
-                )
+                idx_out = (np.arange(n_out) * len(outline_screen)) // n_out
                 n_vol = count - n_out
-                idx_vol = (np.arange(n_vol) * len(body_points_screen)) // len(
-                    body_points_screen
-                )
-                targets = np.vstack(
-                    (outline_screen[idx_out], body_points_screen[idx_vol])
-                )
+                if n_vol:
+                    idx_vol = (np.arange(n_vol) * len(body_points_screen)) // n_vol
+                    targets = np.vstack(
+                        (outline_screen[idx_out], body_points_screen[idx_vol])
+                    )
+                else:
+                    targets = outline_screen[idx_out]
             else:
-                idx_out = (np.arange(count) * len(outline_screen)) // len(
-                    outline_screen
-                )
+                idx_out = (np.arange(count) * len(outline_screen)) // count
                 targets = outline_screen[idx_out]
 
             # Velikost plochy okolo obrysu těla, ve které se objekty přilepí k tělu:
@@ -751,21 +798,28 @@ class OrbitingRingsRenderer:
                 (z, px, py, "pyramid", base_radius_px, t_prim, t_sec)
             )
 
-        # 3. Ruce – prstence válců ('cylinder')
+        # 3. Ruce – prstence válců ('cylinder') okolo levé a pravé paže zvlášť
         a_prim, a_sec = part_rgb("arms")
-        arm_anchors = list(rig.left_arm_points) + list(rig.right_arm_points)
-        if arm_anchors:
-            for i in range(n_arms):
-                ax, ay = arm_anchors[i % len(arm_anchors)]
+        arm_rx = max(13.0, min(20.0, rig.shoulder_half_width * 0.32))
+        arm_ry = arm_rx * 0.36
+        for side_idx, arm_chain in enumerate(
+            (rig.left_arm_points, rig.right_arm_points)
+        ):
+            if not arm_chain:
+                continue
+            count_side = (
+                n_arms // 2 if side_idx == 0 else (n_arms - n_arms // 2)
+            )
+            direction = 1.35 if side_idx == 0 else -1.35
+            for i in range(max(1, count_side)):
+                ax, ay = arm_chain[i % len(arm_chain)]
                 angle = (
-                    (i / max(1, n_arms)) * math.tau
-                    + i * 0.7
-                    + self._orbit_phase * 1.35
+                    (i / max(1, count_side)) * math.tau
+                    + (i % len(arm_chain)) * 0.85
+                    + self._orbit_phase * direction
                 )
-                rx = max(22.0, rig.shoulder_half_width * 0.42)
-                ry = rx * 0.35
-                px = ax + math.cos(angle) * rx
-                py = ay + math.sin(angle) * ry
+                px = ax + math.cos(angle) * arm_rx
+                py = ay + math.sin(angle) * arm_ry
                 z = math.sin(angle)
                 draw_queue.append(
                     (
@@ -773,27 +827,41 @@ class OrbitingRingsRenderer:
                         px,
                         py,
                         "cylinder",
-                        max(6, int(base_radius_px * 0.92)),
+                        max(6, round(base_radius_px * 0.90)),
                         a_prim,
                         a_sec,
                     )
                 )
 
-        # 4. Nohy – prstence kvádrů ('cuboid')
+        # 4. Nohy – prstence kvádrů ('cuboid') okolo každé nohy ZVLÁŠŤ
         l_prim, l_sec = part_rgb("legs")
-        leg_anchors = list(rig.left_leg_points) + list(rig.right_leg_points)
-        if leg_anchors:
-            for i in range(n_legs):
-                lx, ly = leg_anchors[i % len(leg_anchors)]
+        if rig.left_leg_points and rig.right_leg_points:
+            leg_sep = abs(
+                rig.right_leg_points[0][0] - rig.left_leg_points[0][0]
+            )
+            leg_rx = max(11.0, min(leg_sep * 0.32, rig.waist_half_width * 0.34))
+        else:
+            leg_rx = max(12.0, rig.waist_half_width * 0.34)
+        leg_ry = leg_rx * 0.28
+
+        for side_idx, leg_chain in enumerate(
+            (rig.left_leg_points, rig.right_leg_points)
+        ):
+            if not leg_chain:
+                continue
+            count_side = (
+                n_legs // 2 if side_idx == 0 else (n_legs - n_legs // 2)
+            )
+            direction = 1.15 if side_idx == 0 else -1.15
+            for i in range(max(1, count_side)):
+                lx, ly = leg_chain[i % len(leg_chain)]
                 angle = (
-                    (i / max(1, n_legs)) * math.tau
-                    + i * 0.85
-                    - self._orbit_phase * 1.1
+                    (i / max(1, count_side)) * math.tau
+                    + (i % len(leg_chain)) * 0.95
+                    + self._orbit_phase * direction
                 )
-                rx = max(24.0, rig.waist_half_width * 0.62)
-                ry = rx * 0.28
-                px = lx + math.cos(angle) * rx
-                py = ly + math.sin(angle) * ry
+                px = lx + math.cos(angle) * leg_rx
+                py = ly + math.sin(angle) * leg_ry
                 z = math.sin(angle)
                 draw_queue.append(
                     (
@@ -801,7 +869,7 @@ class OrbitingRingsRenderer:
                         px,
                         py,
                         "cuboid",
-                        max(6, int(base_radius_px * 0.95)),
+                        max(6, round(base_radius_px * 0.92)),
                         l_prim,
                         l_sec,
                     )
@@ -843,6 +911,7 @@ class AbstractViewEngine:
         )
         self._selections_cache: dict[int, DepthSelection] = {}
         self._shapes_cache: dict[int, tuple[ContourShape, ...]] = {}
+        self._rigs_cache: dict[tuple[int, int, int], AnatomicalRig] = {}
         self._camera_source: LiveCameraDepthSource | None = None
         self._active_source_signature: tuple | None = None
         self.graffiti_version: int = 0
@@ -871,6 +940,7 @@ class AbstractViewEngine:
         self._active_source_signature = sig
         self._selections_cache.clear()
         self._shapes_cache.clear()
+        self._rigs_cache.clear()
 
         if self._camera_source is not None:
             self._camera_source.close()
@@ -916,10 +986,23 @@ class AbstractViewEngine:
             self._shapes_cache[idx] = shapes
         return sel, shapes
 
+    def _get_rig(self, idx: int, sel: DepthSelection) -> AnatomicalRig:
+        key = (idx, self._size[0], self._size[1])
+        rig = self._rigs_cache.get(key)
+        if rig is None:
+            rig = extract_anatomical_rig(sel.mask, self._size)
+            self._rigs_cache[key] = rig
+        return rig
+
     def _extract_frame_geometry(
         self, elapsed_ms: float
-    ) -> tuple[NDArray[np.uint8], NDArray[np.float64], NDArray[np.float64]]:
-        """Vrátí (maska, obrys_na_obrazovce, vnitřní_body_na_obrazovce)."""
+    ) -> tuple[
+        NDArray[np.uint8],
+        NDArray[np.float64],
+        NDArray[np.float64],
+        AnatomicalRig,
+    ]:
+        """Vrátí (maska, obrys_na_obrazovce, vnitřní_body_na_obrazovce, plynulý_rig)."""
         sw, sh = self._size
         margin = 24.0
 
@@ -933,12 +1016,13 @@ class AbstractViewEngine:
                 else np.empty((0, 2))
             )
             mask = sel.mask
+            rig = extract_anatomical_rig(mask, self._size)
         else:
             curr_idx, next_idx, alpha = transition_for_elapsed(
                 self._frame_offsets, elapsed_ms
             )
             curr_sel, curr_shapes = self._get_selection_and_shapes(curr_idx)
-            _, next_shapes = self._get_selection_and_shapes(next_idx)
+            next_sel, next_shapes = self._get_selection_and_shapes(next_idx)
             pairs = match_contours(curr_shapes, next_shapes)
             outline_grid = (
                 morph_contours(pairs, alpha, count=360)
@@ -946,6 +1030,11 @@ class AbstractViewEngine:
                 else np.empty((0, 2))
             )
             mask = curr_sel.mask
+            rig = blend_anatomical_rigs(
+                self._get_rig(curr_idx, curr_sel),
+                self._get_rig(next_idx, next_sel),
+                alpha,
+            )
 
         gh, gw = mask.shape
         scale = min((sw - 2 * margin) / gw, (sh - 2 * margin) / gh)
@@ -974,13 +1063,13 @@ class AbstractViewEngine:
         else:
             body_screen = np.empty((0, 2))
 
-        return mask, outline_screen, body_screen
+        return mask, outline_screen, body_screen, rig
 
     def _render_single_effect(
         self,
         target_surface: pygame.Surface,
         effect_key: str,
-        mask: NDArray[np.uint8],
+        rig: AnatomicalRig,
         outline_screen: NDArray[np.float64],
         body_screen: NDArray[np.float64],
         settings: AppSettings,
@@ -988,7 +1077,6 @@ class AbstractViewEngine:
         delta_ms: float,
     ) -> None:
         if effect_key == "rings":
-            rig = extract_anatomical_rig(mask, self._size)
             self._rings_renderer.render(
                 target_surface, rig, settings, delta_ms, self.graffiti_version
             )
@@ -1018,7 +1106,7 @@ class AbstractViewEngine:
     ) -> tuple[pygame.Surface, str]:
         """Vykreslí snímek do hlavního surface a vrátí (surface, klíč_aktivního_efektu)."""
         self.sync_source(settings)
-        mask, outline_screen, body_screen = self._extract_frame_geometry(
+        _mask, outline_screen, body_screen, rig = self._extract_frame_geometry(
             elapsed_ms
         )
 
@@ -1029,7 +1117,7 @@ class AbstractViewEngine:
         self._render_single_effect(
             self._surface_main,
             curr_eff,
-            mask,
+            rig,
             outline_screen,
             body_screen,
             settings,
@@ -1041,7 +1129,7 @@ class AbstractViewEngine:
             self._render_single_effect(
                 self._surface_blend,
                 next_eff,
-                mask,
+                rig,
                 outline_screen,
                 body_screen,
                 settings,
