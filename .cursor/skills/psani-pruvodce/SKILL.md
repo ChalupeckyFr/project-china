@@ -18,7 +18,7 @@ Když uživatel text přepíše ručně, jeho znění nech. Nevracej věty, kter
 ## Co v textu zůstává
 
 - Co věc dělá pro člověka, který ji vidí poprvé. Ne proč ji tým vyrobil. „Okno, které simuluje vstupy“ ano. „Zkouška, jestli nám to naběhne“ ne.
-- Jak se to spustí: kliknutí, které opravdu funguje, a příkaz, který udělá totéž.
+- Jak se to spustí: jedno kliknutí, které opravdu otevře to, co čtenář potřebuje, a příkaz, který udělá totéž. Když funguje jen jedna cesta, nech jen ji. Vysvětlení, proč jiná cesta selže, a popis, který Python se používá a proč, smaž.
 - Krátký komentář přímo nad řádkem, který vysvětluje. Stejnou větu už neopakuj pod ukázkou kódu.
 
 ## Co se maže

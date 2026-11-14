@@ -1,6 +1,13 @@
 # Project China
 
-Výstavní stand. Návštěvník stoupne do vyznačeného místa, kamera vezme jeho tvar a projektor kolem něj ukáže obraz. Tenhle soubor je příběh projektu: co už existuje a jak se to spouští. Po přečtení tohoto souboru by každý měl vědět jak vlastně software funguje a měl by mít dostatečné informace k popsání projektu vlastnímy slovy.
+Tento projekt je primárně určen pro školní výstavní stánek na různých akcích. Návštěvník stoupne do vyznačeného místa, kamera vezme jeho tvar a projektor kolem něj ukáže obraz. Tenhle soubor je průvodce projektu: co už existuje a jak se co spouští.
+
+## HW
+
+Hardware použitý v tomto projektu:
+ - Kamera:
+ - RPi:
+ - Output:
 
 ## Dva Python soubory
 
@@ -53,20 +60,12 @@ knob = tk.Canvas(window, width=120, height=120)
 
 ## Jak to spustit
 
-1. Otevři `emulate.py` nebo `Aurela.py`.
+1. Otevři `spustit.py`.
 2. Vpravo nahoře klikni na trojúhelník **Run Python File**.
-3. Otevře se okno. Zavře se křížkem.
+3. Otevřou se obě okna.
 
-Když šipka není vidět, stejnou věc udělá příkaz z kořene projektu. Pro emulační okno:
-
-```powershell
-.\.venv\Scripts\python.exe emulate.py
-```
-
-Pro aplikaci:
+Stejnou věc udělá příkaz z kořene projektu.
 
 ```powershell
-.\.venv\Scripts\python.exe Aurela.py
+.\.venv\Scripts\python.exe spustit.py
 ```
-
-`.venv` je připravený Python tohoto projektu. Má v sobě knihovnu pro okno, proto se používá tenhle, ne první Python, který Windows najde.
