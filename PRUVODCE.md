@@ -16,47 +16,7 @@ Celý projekt začínáme dvěma soubory, které jdou otevřít a přepisovat v 
 - `emulate.py` je okno pomocí kterého budeme simulovat inputy které budou přicházet do RPi.
 - `Aurela.py` je okno samotné aplikace. Aurela je její název. Význam - světelný prstenec kolem člověka.
 
-`Aurela.py` otevře prázdné okno. `emulate.py` má černou plochu, pevný rozměr, tlačítka PWR, Mode a EFF a kolečko hodnoty.
-
-## Co v nich je
-
-`Aurela.py` má jen nastavení obrazovky. Žádné tlačítko, žádný obraz, žádná kamera.
-
-```python
-# Přiveze hotovou součást Pythonu, která umí nakreslit okno. Nemusí se instalovat zvlášť.
-import tkinter as tk
-
-# Nápis v liště.
-TITLE = "emulate"
-# Rozměr okna v pixelech.
-# Písmeno x je součást zápisu.
-SIZE = "960x600"
-
-# Okno vytvoří, ale ještě ho neukáže.
-window = tk.Tk()
-# Do lišty vloží název.
-window.title(TITLE)
-# Nastaví šířku a výšku.
-window.geometry(SIZE)
-# Okno otevře.
-# Bez tohoto řádku by program skončil dřív, než by bylo okno vidět.
-window.mainloop()
-```
-
-`emulate.py` začíná stejně a před otevřením okna přidá:
-
-```python
-# Nedá se měnit šířka ani výška.
-window.resizable(False, False)
-# Plocha okna je černá.
-window.configure(bg="black")
-# PWR zapne a vypne. Mode a EFF střídají název.
-pwr_button = tk.Button(window, text="PWR", command=toggle_power)
-mode_button = tk.Button(window, text="Mode", command=next_mode)
-effect_button = tk.Button(window, text="EFF", command=next_effect)
-# Kolečko. Kolečko myši nad ním mění číslo od 0 do 100.
-knob = tk.Canvas(window, width=120, height=120)
-```
+`Aurela.py` otevře černé okno. V levém dolním rohu na chvíli ukáže název módu, efektu a hodnotu ze `stav.json`. `emulate.py` má černou plochu, pevný rozměr, tlačítka PWR, Mode a EFF a kolečko hodnoty.
 
 ## Jak to spustit
 
