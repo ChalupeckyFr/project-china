@@ -41,6 +41,8 @@ window.geometry(SIZE)
 window.resizable(False, False)
 # Plocha okna je černá.
 window.configure(bg=WINDOW_BG)
+# Zůstane nad ostatními okny, i když se klikne jinam.
+window.attributes("-topmost", True)
 
 # Názvy, které tlačítka střídají. Po posledním se vrací na první.
 MODES = ("mód 1", "mód 2", "mód 3")
@@ -48,8 +50,8 @@ EFFECTS = ("efekt 1", "efekt 2", "efekt 3")
 powered = False
 mode_index = 0
 effect_index = 0
-# Soubor vedle tohoto programu. Aurela si z něj čte stejné čtyři údaje.
-STATE_PATH = Path(__file__).resolve().parent / "stav.json"
+# Sdílený soubor ve složce data. Aurela si z něj čte stejné čtyři údaje.
+STATE_PATH = Path(__file__).resolve().parents[1] / "data" / "stav.json"
 
 def write_state():
     # Čtyři údaje jdou rovnou do souboru. Když ho zrovna čte Aurela, zápis se zopakuje.

@@ -59,12 +59,14 @@ def click(name):
 
 
 def test_font_stays_on_aurela_not_emulate():
-    aurela = Path("Aurela.py").read_text(encoding="utf-8")
-    emulator = Path("emulate.py").read_text(encoding="utf-8")
+    apps = Path(__file__).resolve().parents[1] / "apps"
+    aurela = (apps / "Aurela.py").read_text(encoding="utf-8")
+    emulator = (apps / "emulate.py").read_text(encoding="utf-8")
     assert '("Oswald", 18, "bold")' in aurela
     assert "BBH Bogle" not in aurela
     assert "BBH Bogle" not in emulator
     assert app.pwr_button.cget("font") == "{Segoe UI} 36"
+    assert app.window.attributes("-topmost")
 
 
 def test_wheel_reaches_the_handler_from_every_focused_widget():

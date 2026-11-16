@@ -30,7 +30,7 @@ EFFECT_NAMES = (
 )
 # Jak dlouho nápis zůstane v rohu, v sekundách.
 SHOW_FOR = 2.5
-STATE_PATH = Path(__file__).resolve().parent / "stav.json"
+STATE_PATH = Path(__file__).resolve().parents[1] / "data" / "stav.json"
 # Rozměr okna v pixelech, tedy v bodech na obrazovce.
 # 960x600 znamená 960 bodů na šířku a 600 na výšku.
 # Písmeno x uprostřed je součást zápisu, není to krát.
